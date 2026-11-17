@@ -781,19 +781,26 @@
           <h2 class="serif">教会读经 · 祷告 · 分享</h2>
           <p class="auth-sub">弟兄姐妹专属的小空间<br/>每天一起读经，彼此分享，为彼此代祷。</p>
 
-          <div id="authStepEmail">
-            <div class="field-label">第一步 · 输入你的邮箱</div>
-            <input class="text-input auth-input" id="authEmail" type="email" inputmode="email" autocomplete="email" placeholder="例如：name@example.com" />
-            <button class="btn btn-olive auth-btn" id="sendCodeBtn">发送登录验证码</button>
-            <p class="auth-hint">我们会把登录邮件发到你的邮箱，<br/>点邮件里的链接、或输入邮件中的 6 位验证码都能登录，不用记密码。</p>
+          <div id="authStepLogin">
+            <div class="field-label">用户名</div>
+            <input class="text-input auth-input" id="loginId" type="text" autocomplete="username" placeholder="输入注册时的用户名" />
+            <div class="field-label">密码</div>
+            <input class="text-input auth-input" id="loginPw" type="password" autocomplete="current-password" placeholder="输入密码" />
+            <button class="btn btn-olive auth-btn" id="loginBtn">登录</button>
+            <button class="btn btn-ghost auth-btn" id="gotoRegisterBtn">还没有账号？注册一个</button>
+            <p class="auth-hint">用用户名和密码直接登录，不用再等邮件。<br/>忘记密码请联系管理员重置。</p>
           </div>
 
-          <div id="authStepCode" hidden>
-            <div class="field-label">第二步 · 输入邮箱里的 6 位验证码</div>
-            <input class="text-input auth-input code" id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" />
-            <button class="btn btn-olive auth-btn" id="verifyCodeBtn">登录</button>
-            <button class="btn btn-ghost auth-btn" id="backEmailBtn">换一个邮箱</button>
-            <p class="auth-hint">找不到验证码？看看邮箱的垃圾邮件箱。<br/>也可以直接点邮件里的登录链接，会自动回到这里。</p>
+          <div id="authStepRegister" hidden>
+            <div class="field-label">设置一个用户名（以后登录用）</div>
+            <input class="text-input auth-input" id="regName" type="text" autocomplete="username" placeholder="小写字母、数字或下划线，3-20 位" />
+            <div class="field-label">设置密码（至少 6 位）</div>
+            <input class="text-input auth-input" id="regPw" type="password" autocomplete="new-password" placeholder="输入密码" />
+            <div class="field-label">再输入一次密码</div>
+            <input class="text-input auth-input" id="regPw2" type="password" autocomplete="new-password" placeholder="确认密码" />
+            <button class="btn btn-olive auth-btn" id="registerBtn">注册并登录</button>
+            <button class="btn btn-ghost auth-btn" id="gotoLoginBtn">已有账号？去登录</button>
+            <p class="auth-hint">用户名请记牢，登录时要用。<br/>注册完再填姓名和小组，就能开始使用了。</p>
           </div>
 
           <div id="authStepProfile" hidden>
@@ -1729,66 +1736,81 @@
   }
 
   /* ================================================================
-     正式模式：登录（邮箱验证码 / 魔法链接）与完善资料
+     正式模式：登录（用户名 + 密码）与完善资料
+     用户名账号在 Auth 里以 username@church.local 的内部邮箱形式
+     存在，全程不发邮件；登录框输入真实邮箱 + 密码也可以
+     （管理员早先用邮箱注册的账号，设过密码后可用）。
   ================================================================ */
   var gate = $("#authGate");
   function authMsg(msg) { var el = $("#authMsg"); if (el) el.textContent = msg || ""; }
   function showGate(step) {
     if (!gate) return;
     gate.hidden = false;
-    $("#authStepEmail").hidden = step !== "email";
-    $("#authStepCode").hidden = step !== "code";
+    $("#authStepLogin").hidden = step !== "login";
+    $("#authStepRegister").hidden = step !== "register";
     $("#authStepProfile").hidden = step !== "profile";
     fab.classList.remove("show");
   }
   function hideGate() { if (gate) gate.hidden = true; }
 
-  var pendingEmail = "";
-  $("#sendCodeBtn").addEventListener("click", async function () {
-    var email = $("#authEmail").value.trim();
-    if (!email || email.indexOf("@") < 1) { authMsg("请先填写正确的邮箱地址。"); return; }
-    pendingEmail = email;
-    authMsg("正在发送验证码，请稍等……");
-    try {
-      var res = await sb.auth.signInWithOtp({
-        email: email,
-        options: { emailRedirectTo: window.location.href.split("#")[0] }
-      });
-      if (res.error) throw res.error;
-      authMsg("");
-      showGate("code");
-      toast("登录邮件已发送，请查看邮箱");
-    } catch (e) {
-      if (window.console) console.warn("signInWithOtp error", e);
-      var ecode = (e && (e.code || e.error_code)) || "";
-      var estatus = e && e.status;
-      var eraw = (e && e.message) || "";
-      if (ecode === "over_email_send_rate_limit" || estatus === 429) {
-        authMsg("发送太频繁了：系统自带发信每小时只能发 2 封，已经用完。请等约 1 小时后再试，期间不要重复点击。");
-      } else if (ecode === "email_address_not_authorized") {
-        authMsg("这个邮箱暂时收不到登录邮件：系统自带发信只发给项目成员的邮箱。请先用你注册 Supabase 的邮箱试，正式使用前管理员会配置教会自己的发信服务。");
-      } else if (eraw) {
-        authMsg("发送没有成功（" + eraw + "）。请把这行提示截图发给管理员。");
-      } else {
-        authMsg("发送没有成功，请检查邮箱地址和网络后再试一次。");
-      }
-    }
-  });
-  $("#backEmailBtn").addEventListener("click", function () { authMsg(""); showGate("email"); });
-  $("#verifyCodeBtn").addEventListener("click", async function () {
-    var code = $("#authCode").value.trim();
-    if (code.length < 6) { authMsg("请输入邮箱里的 6 位验证码。"); return; }
+  var USER_DOMAIN = "church.local";
+  function accountEmail(id) {
+    id = (id || "").trim();
+    return id.indexOf("@") >= 0 ? id : id.toLowerCase() + "@" + USER_DOMAIN;
+  }
+  function authError(e, fallback) {
+    if (window.console) console.warn("auth error", e);
+    var raw = (e && e.message) || "";
+    if (/invalid login credentials/i.test(raw)) return "用户名或密码不正确，请重新输入。";
+    if (/email not confirmed/i.test(raw)) return "这个账号还没有开通，请联系管理员处理。";
+    if (/already registered/i.test(raw)) return "这个用户名已经被注册了，换一个试试，或直接去登录。";
+    if (/password should be at least/i.test(raw)) return "密码太短了，至少要 6 位。";
+    if (/unable to validate email|invalid format/i.test(raw)) return "用户名格式不对：只能用小写字母、数字和下划线，3-20 位。";
+    return fallback + (raw ? "（" + raw + "）" : "");
+  }
+  $("#gotoRegisterBtn").addEventListener("click", function () { authMsg(""); showGate("register"); });
+  $("#gotoLoginBtn").addEventListener("click", function () { authMsg(""); showGate("login"); });
+  async function doLogin() {
+    var id = $("#loginId").value.trim();
+    var pw = $("#loginPw").value;
+    if (!id) { authMsg("请先填写用户名。"); return; }
+    if (!pw) { authMsg("请填写密码。"); return; }
     authMsg("正在登录，请稍等……");
     try {
-      var res = await sb.auth.verifyOtp({ email: pendingEmail || $("#authEmail").value.trim(), token: code, type: "email" });
+      var res = await sb.auth.signInWithPassword({ email: accountEmail(id), password: pw });
       if (res.error) throw res.error;
       authMsg("");
-      // 登录成功后 onAuthStateChange / 这里都会走 afterLogin（有防重复）
       if (res.data && res.data.user) afterLogin(res.data.user);
-    } catch (e) {
-      authMsg("验证码不对或已经过期，请重新输入，或返回上一步重新发送。");
-    }
-  });
+    } catch (e) { authMsg(authError(e, "登录没有成功，请检查网络后再试一次。")); }
+  }
+  $("#loginBtn").addEventListener("click", doLogin);
+  $("#loginPw").addEventListener("keydown", function (ev) { if (ev.key === "Enter") doLogin(); });
+  async function doRegister() {
+    var uname = $("#regName").value.trim().toLowerCase();
+    var pw = $("#regPw").value, pw2 = $("#regPw2").value;
+    if (!/^[a-z0-9_]{3,20}$/.test(uname)) { authMsg("用户名只能用小写字母、数字和下划线，3-20 位（例如 chen_anqi）。"); return; }
+    if (pw.length < 6) { authMsg("密码至少要 6 位。"); return; }
+    if (pw !== pw2) { authMsg("两次输入的密码不一样，请重新输入。"); return; }
+    authMsg("正在注册，请稍等……");
+    try {
+      var res = await sb.auth.signUp({
+        email: uname + "@" + USER_DOMAIN, password: pw,
+        options: { data: { username: uname } }
+      });
+      if (res.error) throw res.error;
+      if (res.data && res.data.session && res.data.user) {
+        authMsg("");
+        toast("注册成功，欢迎你");
+        afterLogin(res.data.user);
+      } else if (res.data && res.data.user && (res.data.user.identities || []).length === 0) {
+        authMsg("这个用户名已经被注册了，换一个试试，或直接去登录。");
+      } else {
+        authMsg("注册已提交，但网站后台还没关掉「邮箱确认」，新账号暂时登不进来。请告诉管理员：到 Supabase 的 Authentication → Providers → Email 关掉 Confirm email，你就能直接登录了。");
+      }
+    } catch (e) { authMsg(authError(e, "注册没有成功，请检查网络后再试一次。")); }
+  }
+  $("#registerBtn").addEventListener("click", doRegister);
+  $("#regPw2").addEventListener("keydown", function (ev) { if (ev.key === "Enter") doRegister(); });
 
   async function loadProfileRow() {
     var res = await sb.from("profiles").select("*").eq("id", S.user.id).limit(1);
@@ -1839,6 +1861,13 @@
     try {
       S.profile = await loadProfileRow();
     } catch (e) { S.profile = null; }
+    var uname = user.user_metadata && user.user_metadata.username;
+    if (uname && S.profile && !S.profile.username) {
+      try {
+        var up = await sb.from("profiles").update({ username: uname }).eq("id", user.id);
+        if (!up.error) S.profile.username = uname;
+      } catch (e) { /* 补写用户名失败不影响使用 */ }
+    }
     if (!S.profile || !S.profile.display_name || !S.profile.group_id) {
       showProfileSetup(S.profile);
       return;
@@ -1851,11 +1880,11 @@
     try { await sb.auth.signOut(); } catch (e) { /* 忽略 */ }
     S.user = null; S.profile = null; S.booted = false;
     toast("已退出登录");
-    showGate("email");
+    showGate("login");
   });
 
   async function initFormal() {
-    showGate("email");
+    showGate("login");
     try {
       var res = await sb.auth.getSession();
       var session = res.data && res.data.session;
@@ -1866,7 +1895,7 @@
         if (!S.user) afterLogin(session.user);
       } else if (event === "SIGNED_OUT") {
         S.user = null; S.profile = null; S.booted = false;
-        showGate("email");
+        showGate("login");
       }
     });
   }

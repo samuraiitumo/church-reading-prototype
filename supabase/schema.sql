@@ -15,11 +15,15 @@ create table if not exists public.groups (
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null default '',
+  username text,
   role text not null default 'member' check (role in ('member','leader','admin')),
   group_id uuid references public.groups(id) on delete set null,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+-- 用户名（登录用）不重复，大小写不敏感
+create unique index if not exists profiles_username_lower_key
+  on public.profiles (lower(username)) where username is not null;
 
 -- ---------- 读经计划与每日经文 ----------
 create table if not exists public.reading_plans (
@@ -123,8 +127,9 @@ $$;
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, display_name)
-  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)))
+  insert into public.profiles (id, display_name, username)
+  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)),
+          nullif(new.raw_user_meta_data->>'username', ''))
   on conflict (id) do nothing;
   return new;
 end;
