@@ -657,6 +657,7 @@
     clearVerseSel();
     closeSheets();
     go("me");
+    openSheet("myNotes");
     var nf = $("#noteForm"); if (nf) nf.style.display = "";
     $("#noteTitle").value = ref;
     setTimeout(function () { var nt = $("#noteText"); if (nt) nt.focus(); }, 80);
@@ -671,6 +672,9 @@
 
   /* ---- 我的划线列表 ---- */
   $("#openHlBtn").addEventListener("click", function () { openSheet("myHl"); renderHlList(); });
+  $("#openNotesBtn").addEventListener("click", function () { openSheet("myNotes"); });
+  var tnl = $("#todayNotesLink");
+  if (tnl) tnl.addEventListener("click", function () { openSheet("myNotes"); });
   async function renderHlList() {
     var box = $("#hlList");
     var order = bookOrder();
@@ -1294,9 +1298,15 @@
     if (bookOrder()[m[1]] === undefined) return null;
     return { book: m[1], ch: +m[2] };
   }
+  function updateNoteBadge() {
+    var n = (S.notesCache || []).length;
+    var b = $("#noteBadge");
+    if (b) { b.textContent = n + " 篇"; b.style.display = n ? "" : "none"; }
+  }
   function renderNotes() {
     var list = $("#notesList");
     if (!list) return;
+    updateNoteBadge();
     var all = S.notesCache || [];
     if (!all.length) {
       list.innerHTML = '<p style="color:var(--muted);font-size:14.5px;padding:6px 2px">还没有笔记。读经时有触动，就随手记一句吧。</p>';

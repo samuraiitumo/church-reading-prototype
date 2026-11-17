@@ -152,7 +152,7 @@
             </button>
           </div>
 
-          <div class="sec-head"><h2>我的划线与笔记</h2><a data-goto="me">全部笔记</a></div>
+          <div class="sec-head"><h2>我的划线与笔记</h2><a data-goto="me" id="todayNotesLink">全部笔记</a></div>
           <div class="card note-card" data-goto="me">
             <div class="n-date">约翰福音 15:7 · 已划线</div>
             <p class="n-text serif">「你们若常在我里面，我的话也常在你们里面，凡你们所愿意的，祈求，就给你们成就。」</p>
@@ -211,12 +211,6 @@
             <div class="stat"><b id="statShares">12</b><span>我的分享（篇）</span></div>
           </div>
 
-          <div class="sec-head"><h2>我的私密笔记</h2><span class="tag">仅自己可见</span></div>
-          <div id="noteForm" style="display:none"><input class="text-input" id="noteTitle" placeholder="标题（可不填，如：约翰福音 15 章）" /><textarea id="noteText" rows="3" placeholder="写下今天的领受，只有你自己能看到……" style="margin-top:10px"></textarea><button class="btn btn-olive" id="addNoteBtn" style="width:100%;margin-top:10px">保存笔记</button></div><input class="text-input" id="noteSearch" placeholder="搜索笔记（标题或内容）" style="display:none;margin-bottom:12px" /><div id="notesList"></div><div class="card note-card" id="demoNoteCard" data-toast="这是演示笔记 · 正式版中点开笔记可以编辑内容">
-            <div class="n-date">11月16日 · 约翰福音 14 章</div>
-            <p class="n-text">「我留下平安给你们」——最近为父亲的身体担心，这句话让我心里安定。祷告：求主让我先得着平安，再去安慰家人。（这篇只有我自己能看到）</p>
-          </div>
-
           <div class="card menu">
             <button data-goto="share" data-share-mine>
               <span class="m-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg></span>
@@ -227,6 +221,12 @@
               <span class="m-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-9.8-9A5.4 5.4 0 0 1 12 6.5 5.4 5.4 0 0 1 21.8 12C19.5 16.4 12 21 12 21z"/></svg></span>
               我的祷告清单
               <span class="tag rose m-badge" id="myPrayBadge">3 件待祷告</span>
+            </button>
+            <button id="openNotesBtn">
+              <span class="m-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+              我的笔记
+              <span class="tag gold m-badge" id="noteBadge" style="display:none"></span>
+              <span class="m-arrow">›</span>
             </button>
             <button id="openHlBtn">
               <span class="m-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
@@ -499,6 +499,24 @@
         <div class="sheet-body">
           <div id="hlList"></div>
           <p class="set-note">划线只有你自己能看到。点任意一条可以回到那一章经文。</p>
+        </div>
+      </div>
+
+      <!-- ============ 我的笔记 ============ -->
+      <div class="sheet" id="myNotes" role="dialog" aria-label="我的笔记">
+        <div class="sheet-bar">
+          <button class="back" data-close-sheet aria-label="返回">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <h3>我的笔记</h3>
+          <span class="spacer"></span>
+        </div>
+        <div class="sheet-body">
+          <div id="noteForm" style="display:none"><input class="text-input" id="noteTitle" placeholder="标题（可不填，如：约翰福音 15 章）" /><textarea id="noteText" rows="3" placeholder="写下今天的领受，只有你自己能看到……" style="margin-top:10px"></textarea><button class="btn btn-olive" id="addNoteBtn" style="width:100%;margin-top:10px">保存笔记</button></div><input class="text-input" id="noteSearch" placeholder="搜索笔记（标题或内容）" style="display:none;margin-bottom:12px" /><div id="notesList"></div><div class="card note-card" id="demoNoteCard" data-toast="这是演示笔记 · 正式版中点开笔记可以编辑内容">
+            <div class="n-date">11月16日 · 约翰福音 14 章</div>
+            <p class="n-text">「我留下平安给你们」——最近为父亲的身体担心，这句话让我心里安定。祷告：求主让我先得着平安，再去安慰家人。（这篇只有我自己能看到）</p>
+          </div>
+          <p class="set-note">笔记只有你自己能看到。在读经页点任意一节经文，也可以直接为那节经文写笔记。</p>
         </div>
       </div>
 
