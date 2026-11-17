@@ -966,8 +966,13 @@
   }
   function chapterHtml(book, ch, verses) {
     var h = '<h3 class="chap-head">' + escapeHtml(book) + " 第" + ch + "章</h3>";
-    h += verses.map(function (v) {
-      return '<p><span class="vn">' + v.verse + "</span>" + escapeHtml(v.text) + "</p>";
+    h += verses.map(function (v, i) {
+      /* 合节：和合本有若干节与上一节合并排印（如创24:29-30），库中无独立行；
+         节号缺口处按新标点和合本的标法显示为节段（如 29-30）。 */
+      var label = String(v.verse);
+      var next = verses[i + 1];
+      if (next && next.verse > v.verse + 1) label = v.verse + "-" + (next.verse - 1);
+      return '<p><span class="vn">' + label + "</span>" + escapeHtml(v.text) + "</p>";
     }).join("");
     return h;
   }
