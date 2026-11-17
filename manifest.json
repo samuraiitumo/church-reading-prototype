@@ -1,0 +1,19 @@
+{
+  "name": "教会读经 · 祷告 · 分享",
+  "short_name": "教会读经",
+  "description": "每天一起读经，彼此分享，为彼此代祷。",
+  "lang": "zh-CN",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#FAF7F2",
+  "theme_color": "#FAF7F2",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
