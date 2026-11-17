@@ -157,20 +157,37 @@
       var label = String(v.verse);
       var next = verses[i + 1];
       if (next && next.verse > v.verse + 1) label = v.verse + "-" + (next.verse - 1);
-      return '<p data-vref="' + escapeHtml(book + " " + ch + ":" + label) + '"><span class="vn">' + label + "</span>" + escapeHtml(v.text) + "</p>";
+      var key = book + "|" + ch + "|" + v.verse;
+      return '<p data-vref="' + escapeHtml(book + " " + ch + ":" + label) + '" data-hlkey="' + escapeHtml(key) + '"' + (HL.map[key] ? ' class="hl-on"' : "") + '><span class="vn">' + label + "</span>" + escapeHtml(v.text) + "</p>";
     }).join("");
     return h;
   }
   async function openReading(r) {
     if (FORMAL && r) {
-      readerDate = r.read_date || todayStr();
+      readerDate = r.read_date || null;
+      clearVerseSel();
+      var footEl = $("#readerFoot");
+      if (footEl) footEl.style.display = r.single ? "none" : "";
       var rcb = $("#readerCheckinBtn");
-      if (rcb) rcb.style.display = readerDate === todayStr() ? "" : "none";
+      if (rcb) rcb.style.display = (!r.single && readerDate === todayStr()) ? "" : "none";
       $("#readerRef").textContent = r.reference || "今日经文";
       $("#readerTitle").textContent = r.reference || "今日经文";
-      $("#readerSub").textContent = r.read_date ? (r.read_date + " · 读完后在页尾打卡") : "读完后在页尾打卡";
+      $("#readerSub").textContent = r.single ? "从我的划线 / 笔记打开" : (r.read_date ? (r.read_date + " · 读完后在页尾打卡") : "读完后在页尾打卡");
       if (r.content) $("#verses").innerHTML = formatContent(r.content);
       openSheet("reader");
+      if (r.single) {
+        $("#verses").innerHTML = '<p style="color:var(--rmut)">正在加载经文全文…</p>';
+        try {
+          var sv = await fetchChapter(r.single[0], r.single[1]);
+          if (sv.length) {
+            $("#verses").innerHTML = chapterHtml(r.single[0], r.single[1], sv) +
+              '<p class="chap-note">站内经文：和合本（公有领域）· 教会读经译本为新译本，请对照新译本阅读</p>';
+            return;
+          }
+        } catch (e) { /* 落到下面的提示 */ }
+        $("#verses").innerHTML = '<p style="color:var(--rmut)">这一章的经文暂时没能加载，请检查网络后再试。</p>';
+        return;
+      }
       if (r.ot && r.nt) {
         $("#verses").innerHTML = '<p style="color:var(--rmut)">正在加载经文全文…</p>';
         try {
@@ -450,17 +467,184 @@
   }
   $("#readerPrev").addEventListener("click", function () { shiftReader(-1); });
   $("#readerNext").addEventListener("click", function () { shiftReader(1); });
+  /* ================================================================
+     划线（highlights）：点经文 → 操作栏（划线 / 写笔记 / 复制）
+     正式模式存数据库（highlights 表）；表还没建时先存本机，
+     建表后首次加载会自动把本机划线同步进数据库。
+  ================================================================ */
+  var HL = { map: {}, db: false };
+  var HL_LS = "churchHighlights";
+  function hlKey(book, ch, v) { return book + "|" + ch + "|" + v; }
+  function bookOrder() {
+    if (!bookOrder.map) {
+      bookOrder.map = {};
+      OT_BOOKS.concat(NT_BOOKS).forEach(function (b, i) { bookOrder.map[b[0]] = i; });
+    }
+    return bookOrder.map;
+  }
+  function updateHlBadge() {
+    var n = Object.keys(HL.map).length;
+    var b = $("#hlBadge");
+    if (b) { b.textContent = n + " 处"; b.style.display = n ? "" : "none"; }
+  }
+  function applyHighlightsToDom() {
+    $$("#verses p[data-hlkey]").forEach(function (p) {
+      p.classList.toggle("hl-on", !!HL.map[p.getAttribute("data-hlkey")]);
+    });
+  }
+  function saveLocalHl() {
+    try { localStorage.setItem(HL_LS, JSON.stringify(Object.keys(HL.map))); } catch (e) {}
+  }
+  async function loadHighlights() {
+    if (!FORMAL || !S.user) return;
+    try {
+      var res = await sb.from("highlights").select("*").eq("user_id", S.user.id);
+      if (res.error) throw res.error;
+      HL.db = true;
+      HL.map = {};
+      (res.data || []).forEach(function (h) { HL.map[hlKey(h.book, h.chapter, h.verse)] = h; });
+      // 本机若有未同步的划线（建表之前划的），一次性同步进数据库
+      var localKeys = [];
+      try { localKeys = JSON.parse(localStorage.getItem(HL_LS) || "[]"); } catch (e) {}
+      var pending = localKeys.filter(function (k) { return !HL.map[k]; });
+      for (var i = 0; i < pending.length; i++) {
+        var pp = pending[i].split("|");
+        try {
+          var ins = await sb.from("highlights").insert({ user_id: S.user.id, book: pp[0], chapter: +pp[1], verse: +pp[2] }).select().single();
+          if (!ins.error && ins.data) HL.map[pending[i]] = ins.data;
+        } catch (e) {}
+      }
+      if (pending.length) saveLocalHl();
+    } catch (e) {
+      HL.db = false;
+      HL.map = {};
+      try { (JSON.parse(localStorage.getItem(HL_LS) || "[]")).forEach(function (k) { HL.map[k] = { local: true }; }); } catch (e2) {}
+    }
+    updateHlBadge();
+    applyHighlightsToDom();
+  }
+  async function toggleHighlight(sv) {
+    var key = sv.key;
+    if (HL.map[key]) {
+      delete HL.map[key];
+      if (HL.db) { try { await sb.from("highlights").delete().eq("user_id", S.user.id).eq("book", sv.book).eq("chapter", sv.ch).eq("verse", sv.v); } catch (e) {} }
+    } else {
+      HL.map[key] = { book: sv.book, chapter: sv.ch, verse: sv.v, color: "gold" };
+      if (HL.db) {
+        try {
+          var r = await sb.from("highlights").insert({ user_id: S.user.id, book: sv.book, chapter: sv.ch, verse: sv.v }).select().single();
+          if (!r.error && r.data) HL.map[key] = r.data;
+        } catch (e) {}
+      }
+    }
+    if (!HL.db) saveLocalHl();
+    updateHlBadge();
+    applyHighlightsToDom();
+  }
+
+  /* ---- 经文选中与操作栏 ---- */
+  var selVerse = null;
+  function clearVerseSel() {
+    selVerse = null;
+    $$("#verses p.verse-sel").forEach(function (x) { x.classList.remove("verse-sel"); });
+    var b = $("#verseBar"); if (b) b.hidden = true;
+  }
   $("#verses").addEventListener("click", function (e) {
     if (!FORMAL) return;
-    var p = e.target.closest("p[data-vref]");
+    var p = e.target.closest("p[data-hlkey]");
     if (!p) return;
-    var ref = p.getAttribute("data-vref");
+    clearVerseSel();
+    var key = p.getAttribute("data-hlkey");
+    var parts = key.split("|");
+    selVerse = {
+      key: key, book: parts[0], ch: +parts[1], v: +parts[2],
+      label: p.getAttribute("data-vref"),
+      text: p.textContent.replace(/^\s*\d+(?:-\d+)?\s*/, "")
+    };
+    p.classList.add("verse-sel");
+    $("#vbRef").textContent = selVerse.label;
+    $("#vbHl").textContent = HL.map[key] ? "取消划线" : "划线";
+    $("#verseBar").hidden = false;
+  });
+  $("#vbClose").addEventListener("click", clearVerseSel);
+  $("#vbHl").addEventListener("click", async function () {
+    if (!selVerse) return;
+    var sv = selVerse;
+    await toggleHighlight(sv);
+    $("#vbHl").textContent = HL.map[sv.key] ? "取消划线" : "划线";
+    toast(HL.map[sv.key] ? "已划线，存在「我的划线」里" : "已取消划线");
+  });
+  $("#vbNote").addEventListener("click", function () {
+    if (!selVerse) return;
+    var ref = selVerse.label;
+    clearVerseSel();
     closeSheets();
     go("me");
     var nf = $("#noteForm"); if (nf) nf.style.display = "";
     $("#noteTitle").value = ref;
     setTimeout(function () { var nt = $("#noteText"); if (nt) nt.focus(); }, 80);
     toast("为「" + ref + "」写笔记");
+  });
+  $("#vbCopy").addEventListener("click", async function () {
+    if (!selVerse) return;
+    var t = selVerse.text + "（" + selVerse.label + " · 和合本）";
+    try { await navigator.clipboard.writeText(t); toast("经文已复制，可以粘贴分享了"); }
+    catch (e) { toast("复制没有成功，可以长按经文手动复制"); }
+  });
+
+  /* ---- 我的划线列表 ---- */
+  $("#openHlBtn").addEventListener("click", function () { openSheet("myHl"); renderHlList(); });
+  async function renderHlList() {
+    var box = $("#hlList");
+    var order = bookOrder();
+    var entries = Object.keys(HL.map).map(function (k) {
+      var p = k.split("|");
+      return { key: k, book: p[0], ch: +p[1], v: +p[2] };
+    }).sort(function (a, b) {
+      return (order[a.book] - order[b.book]) || (a.ch - b.ch) || (a.v - b.v);
+    });
+    if (!entries.length) {
+      box.innerHTML = '<p class="set-note">还没有划线。在读经页点任意一节经文，选「划线」，就会保存在这里。</p>';
+      return;
+    }
+    box.innerHTML = '<p class="set-note">正在加载划线内容……</p>';
+    var groups = [];
+    entries.forEach(function (en) {
+      var g = groups[groups.length - 1];
+      if (!g || g.book !== en.book || g.ch !== en.ch) { g = { book: en.book, ch: en.ch, items: [] }; groups.push(g); }
+      g.items.push(en);
+    });
+    var html = "";
+    for (var gi = 0; gi < groups.length; gi++) {
+      var g2 = groups[gi];
+      var verses = [];
+      try { verses = await fetchChapter(g2.book, g2.ch); } catch (e) {}
+      var textByVerse = {};
+      verses.forEach(function (vv) { textByVerse[vv.verse] = vv.text; });
+      html += '<div class="field-label">' + escapeHtml(g2.book) + " 第" + g2.ch + "章</div>";
+      html += g2.items.map(function (en) {
+        return '<div class="card note-card"><div class="n-date">' + escapeHtml(en.book + " " + en.ch + ":" + en.v) +
+          '<button class="note-del" data-hl-del="' + escapeHtml(en.key) + '">删除</button>' +
+          '<button class="note-goto" data-hl-goto="' + escapeHtml(en.book + "|" + en.ch) + '">看这一章</button></div>' +
+          '<p class="n-text">' + escapeHtml(textByVerse[en.v] || "（经文加载失败，点「看这一章」查看）") + "</p></div>";
+      }).join("");
+    }
+    box.innerHTML = html;
+  }
+  document.addEventListener("click", function (e) {
+    var del = e.target.closest("[data-hl-del]");
+    if (del) {
+      var k = del.getAttribute("data-hl-del");
+      var p = k.split("|");
+      toggleHighlight({ key: k, book: p[0], ch: +p[1], v: +p[2] }).then(function () { renderHlList(); });
+      return;
+    }
+    var gt = e.target.closest("[data-hl-goto]");
+    if (gt) {
+      var p2 = gt.getAttribute("data-hl-goto").split("|");
+      closeSheets();
+      openReading({ single: [p2[0], +p2[1]], reference: p2[0] + " 第" + p2[1] + "章", read_date: null, content: "" });
+    }
   });
 
   /* ---- 新成员三步引导卡（关闭后不再显示） ---- */
@@ -867,23 +1051,49 @@
     try {
       var res = await sb.from("notes").select("*").eq("user_id", S.user.id).order("created_at", { ascending: false });
       if (res.error) throw res.error;
-      if (!res.data || !res.data.length) {
-        list.innerHTML = '<p style="color:var(--muted);font-size:14.5px;padding:6px 2px">还没有笔记。读经时有触动，就随手记一句吧。</p>';
-        return;
-      }
-      S.notesById = {};
-      list.innerHTML = res.data.map(function (n) {
-        S.notesById[n.id] = n;
-        var d = new Date(n.created_at);
-        return '<div class="card note-card" data-note-card="' + n.id + '"><div class="n-date">' + (d.getMonth() + 1) + "月" + d.getDate() + "日" +
-          (n.title ? " · " + escapeHtml(n.title) : "") +
-          '<button class="note-del" data-del-note="' + n.id + '">删除</button></div>' +
-          '<p class="n-text">' + escapeHtml(n.content) + '</p><p class="n-edit-hint" style="color:var(--muted);font-size:12.5px;margin-top:6px">点开可编辑</p></div>';
-      }).join("");
+      S.notesCache = res.data || [];
+      renderNotes();
     } catch (e) {
       list.innerHTML = '<p style="color:var(--muted);font-size:14.5px;padding:6px 2px">笔记加载失败，请检查网络。</p>';
     }
   }
+  function parseRefTitle(title) {
+    var m = /^(.+?)\s*(\d+)\s*[:：]\s*(\d+)(?:\s*[-–]\s*\d+)?$/.exec((title || "").trim());
+    if (!m) return null;
+    if (bookOrder()[m[1]] === undefined) return null;
+    return { book: m[1], ch: +m[2] };
+  }
+  function renderNotes() {
+    var list = $("#notesList");
+    if (!list) return;
+    var all = S.notesCache || [];
+    if (!all.length) {
+      list.innerHTML = '<p style="color:var(--muted);font-size:14.5px;padding:6px 2px">还没有笔记。读经时有触动，就随手记一句吧。</p>';
+      return;
+    }
+    var q = (($("#noteSearch") && $("#noteSearch").value) || "").trim().toLowerCase();
+    var rows = all.filter(function (n) {
+      return !q || ((n.title || "") + " " + (n.content || "")).toLowerCase().indexOf(q) !== -1;
+    });
+    if (!rows.length) {
+      list.innerHTML = '<p style="color:var(--muted);font-size:14.5px;padding:6px 2px">没有找到包含「' + escapeHtml(q) + "」的笔记。</p>";
+      return;
+    }
+    S.notesById = {};
+    list.innerHTML = rows.map(function (n) {
+      S.notesById[n.id] = n;
+      var d = new Date(n.created_at);
+      var ref = parseRefTitle(n.title);
+      return '<div class="card note-card" data-note-card="' + n.id + '"><div class="n-date">' + (d.getMonth() + 1) + "月" + d.getDate() + "日" +
+        (n.title ? " · " + escapeHtml(n.title) : "") +
+        '<button class="note-del" data-del-note="' + n.id + '">删除</button>' +
+        (ref ? '<button class="note-goto" data-note-goto="' + escapeHtml(ref.book + "|" + ref.ch) + '">看经文</button>' : "") +
+        '</div>' +
+        '<p class="n-text">' + escapeHtml(n.content) + '</p><p class="n-edit-hint" style="color:var(--muted);font-size:12.5px;margin-top:6px">点开可编辑</p></div>';
+    }).join("");
+  }
+  var noteSearchEl = $("#noteSearch");
+  if (noteSearchEl) noteSearchEl.addEventListener("input", function () { renderNotes(); });
   document.addEventListener("click", function (e) {
     var add = e.target.closest("#addNoteBtn");
     if (add && FORMAL) {
@@ -914,15 +1124,25 @@
       })();
       return;
     }
+    var ng = e.target.closest("[data-note-goto]");
+    if (ng && FORMAL) {
+      var gp = ng.getAttribute("data-note-goto").split("|");
+      openReading({ single: [gp[0], +gp[1]], reference: gp[0] + " 第" + gp[1] + "章", read_date: null, content: "" });
+      return;
+    }
     var save = e.target.closest("[data-note-save]");
     if (save && FORMAL) {
       var sid = save.getAttribute("data-note-save");
       var ta = document.querySelector('[data-note-edit="' + sid + '"]');
       var txt = ta ? ta.value.trim() : "";
       if (!txt) { toast("内容不能为空"); return; }
+      var ti = document.querySelector('[data-note-title="' + sid + '"]');
+      var newTitle = ti ? ti.value.trim() : undefined;
       (async function () {
         try {
-          var res = await sb.from("notes").update({ content: txt }).eq("id", sid);
+          var patch = { content: txt };
+          if (newTitle !== undefined) patch.title = newTitle;
+          var res = await sb.from("notes").update(patch).eq("id", sid);
           if (res.error) throw res.error;
           loadNotes();
           toast("笔记已更新");
@@ -940,12 +1160,18 @@
       var hint = card2.querySelector(".n-edit-hint");
       if (hint) hint.style.display = "none";
       if (pEl) {
+        var ti2 = document.createElement("input");
+        ti2.setAttribute("data-note-title", nid);
+        ti2.className = "text-input";
+        ti2.value = note.title || "";
+        ti2.placeholder = "标题（可不填）";
+        ti2.style.cssText = "width:100%;margin-top:8px";
         var ta2 = document.createElement("textarea");
         ta2.setAttribute("data-note-edit", nid);
         ta2.value = note.content;
         ta2.rows = 4;
         ta2.style.cssText = "width:100%;margin-top:8px";
-        pEl.replaceWith(ta2);
+        pEl.replaceWith(ti2, ta2);
         var bar = document.createElement("div");
         bar.style.cssText = "display:flex;gap:10px;margin-top:10px";
         bar.innerHTML = '<button class="btn btn-olive" data-note-save="' + nid + '" style="flex:1">保存</button>' +
@@ -1236,6 +1462,7 @@
     loadShares();
     loadPrayers();
     loadNotes();
+    loadHighlights();
   }
 
   /* ================================================================
@@ -1420,7 +1647,7 @@
     var d = new Date();
     for (var i = 1; i <= 23; i++) { var x = new Date(d); x.setDate(d.getDate() - i); S.myCheckins[dateStr(x)] = true; }
     buildCalendar();
-    var rt = $("#readerTip"); if (rt) rt.textContent = "演示模式 · 正式版中点任意一节经文可写私密笔记";
+    var rt = $("#readerTip"); if (rt) rt.textContent = "演示模式 · 正式版中点经文可以划线、写笔记";
     $("#shareFeed").innerHTML = demoPosts.map(shareCard).join("");
     $("#todayShareSlot").innerHTML = shareCard(demoPosts[0]);
     $("#prayFeed").innerHTML = demoPrayers.map(prayerCard).join("");
@@ -1432,6 +1659,7 @@
   if (FORMAL) {
     var so = $("#signOutBtn"); if (so) so.style.display = "";
     var nf = $("#noteForm"); if (nf) nf.style.display = "";
+    var nse = $("#noteSearch"); if (nse) nse.style.display = "";
     var dc = $("#demoNoteCard"); if (dc) dc.style.display = "none";
     initFormal();
   } else {

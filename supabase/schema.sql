@@ -107,6 +107,17 @@ create table if not exists public.notes (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.highlights (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  book text not null,
+  chapter int not null,
+  verse int not null,
+  color text not null default 'gold',
+  created_at timestamptz not null default now(),
+  unique (user_id, book, chapter, verse)
+);
+
 -- ---------- 辅助函数（security definer，避免 RLS 递归） ----------
 create or replace function public.my_group_id() returns uuid
 language sql security definer stable set search_path = public as $$
@@ -153,6 +164,7 @@ alter table public.prayers       enable row level security;
 alter table public.reactions     enable row level security;
 alter table public.comments      enable row level security;
 alter table public.notes         enable row level security;
+alter table public.highlights    enable row level security;
 
 -- 小组：登录成员可看，管理员可改
 drop policy if exists groups_select on public.groups;
@@ -248,6 +260,11 @@ create policy comments_delete on public.comments for delete to authenticated
 -- 笔记：完全私密，仅自己
 drop policy if exists notes_all on public.notes;
 create policy notes_all on public.notes for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- 划线：完全私密，仅自己
+drop policy if exists highlights_all on public.highlights;
+create policy highlights_all on public.highlights for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ============================================================

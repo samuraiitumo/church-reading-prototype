@@ -211,7 +211,7 @@
           </div>
 
           <div class="sec-head"><h2>我的私密笔记</h2><span class="tag">仅自己可见</span></div>
-          <div id="noteForm" style="display:none"><input class="text-input" id="noteTitle" placeholder="标题（可不填，如：约翰福音 15 章）" /><textarea id="noteText" rows="3" placeholder="写下今天的领受，只有你自己能看到……" style="margin-top:10px"></textarea><button class="btn btn-olive" id="addNoteBtn" style="width:100%;margin-top:10px">保存笔记</button></div><div id="notesList"></div><div class="card note-card" id="demoNoteCard" data-toast="这是演示笔记 · 正式版中点开笔记可以编辑内容">
+          <div id="noteForm" style="display:none"><input class="text-input" id="noteTitle" placeholder="标题（可不填，如：约翰福音 15 章）" /><textarea id="noteText" rows="3" placeholder="写下今天的领受，只有你自己能看到……" style="margin-top:10px"></textarea><button class="btn btn-olive" id="addNoteBtn" style="width:100%;margin-top:10px">保存笔记</button></div><input class="text-input" id="noteSearch" placeholder="搜索笔记（标题或内容）" style="display:none;margin-bottom:12px" /><div id="notesList"></div><div class="card note-card" id="demoNoteCard" data-toast="这是演示笔记 · 正式版中点开笔记可以编辑内容">
             <div class="n-date">11月16日 · 约翰福音 14 章</div>
             <p class="n-text">「我留下平安给你们」——最近为父亲的身体担心，这句话让我心里安定。祷告：求主让我先得着平安，再去安慰家人。（这篇只有我自己能看到）</p>
           </div>
@@ -226,6 +226,12 @@
               <span class="m-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.6-9.8-9A5.4 5.4 0 0 1 12 6.5 5.4 5.4 0 0 1 21.8 12C19.5 16.4 12 21 12 21z"/></svg></span>
               我的祷告清单
               <span class="tag rose m-badge" id="myPrayBadge">3 件待祷告</span>
+            </button>
+            <button id="openHlBtn">
+              <span class="m-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+              我的划线
+              <span class="tag gold m-badge" id="hlBadge" style="display:none"></span>
+              <span class="m-arrow">›</span>
             </button>
             <button id="openGroupBtn">
               <span class="m-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
@@ -313,12 +319,19 @@
             <p><span class="vn">16</span>不是你们拣选了我，是我拣选了你们，并且分派你们去结果子，叫你们的果子长存，使你们奉我的名，无论向父求什么，他就赐给你们。</p>
             <p><span class="vn">17</span>我这样吩咐你们，是要叫你们彼此相爱。</p>
           </div>
-          <p style="text-align:center;font-size:13px;margin-top:16px" ><span style="color:var(--rmut)" id="readerTip">小提示：点任意一节经文，可以为它写私密笔记</span></p>
-          <div class="reader-foot">
+          <p style="text-align:center;font-size:13px;margin-top:16px" ><span style="color:var(--rmut)" id="readerTip">小提示：点任意一节经文，可以划线、写笔记或复制</span></p>
+          <div class="reader-foot" id="readerFoot">
             <button class="btn btn-ghost" id="readerPrev">← 前一天</button>
             <button class="btn btn-olive" data-checkin id="readerCheckinBtn">✓ 读完打卡</button>
             <button class="btn btn-ghost" id="readerNext">后一天 →</button>
           </div>
+        </div>
+        <div class="verse-bar" id="verseBar" hidden>
+          <span class="vb-ref" id="vbRef"></span>
+          <button class="btn btn-ghost" id="vbCopy">复制</button>
+          <button class="btn btn-ghost" id="vbNote">写笔记</button>
+          <button class="btn btn-olive" id="vbHl">划线</button>
+          <button class="x" id="vbClose" aria-label="取消选择">×</button>
         </div>
       </div>
 
@@ -458,6 +471,21 @@
         </div>
         <div class="sheet-body">
           <div id="groupSheetBody"></div>
+        </div>
+      </div>
+
+      <!-- ============ 我的划线 ============ -->
+      <div class="sheet" id="myHl" role="dialog" aria-label="我的划线">
+        <div class="sheet-bar">
+          <button class="back" data-close-sheet aria-label="返回">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <h3>我的划线</h3>
+          <span class="spacer"></span>
+        </div>
+        <div class="sheet-body">
+          <div id="hlList"></div>
+          <p class="set-note">划线只有你自己能看到。点任意一条可以回到那一章经文。</p>
         </div>
       </div>
 
