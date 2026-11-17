@@ -1422,24 +1422,53 @@
     (res.data || []).forEach(function (r) { S.myCheckins[r.checkin_date] = true; });
   }
 
+  /* ================================================================
+     读经计划：按日期自动计算（不依赖数据库预排）
+     规则：每天旧约 1 章 + 新约 1 章，各自按书卷顺序推进，读完自动回绕。
+     锚点：2026-11-17 = 耶利米哀歌 5 章 + 以弗所书 5 章（教会确认）。
+     译本：新译本（仅给出经文出处；全文版权确认后由管理员录入）
+  ================================================================ */
+  var PLAN_ANCHOR = "2026-11-17";
+  var OT_BOOKS = [["创世纪",50],["出埃及记",40],["利未记",27],["民数记",36],["申命记",34],["约书亚记",24],["士师记",21],["路得记",4],["撒母耳记上",31],["撒母耳记下",24],["列王纪上",22],["列王纪下",25],["历代志上",29],["历代志下",36],["以斯拉记",10],["尼希米记",13],["以斯帖记",10],["约伯记",42],["诗篇",150],["箴言",31],["传道书",12],["雅歌",8],["以赛亚书",66],["耶利米书",52],["耶利米哀歌",5],["以西结书",48],["但以理书",12],["何西阿书",14],["约珥书",3],["阿摩司书",9],["俄巴底亚书",1],["约拿书",4],["弥迦书",7],["那鸿书",3],["哈巴谷书",3],["西番雅书",3],["哈该书",2],["撒迦利亚书",14],["玛拉基书",4]];
+  var NT_BOOKS = [["马太福音",28],["马可福音",16],["路加福音",24],["约翰福音",21],["使徒行传",28],["罗马书",16],["哥林多前书",16],["哥林多后书",13],["加拉太书",6],["以弗所书",6],["腓立比书",4],["歌罗西书",4],["帖撒罗尼迦前书",5],["帖撒罗尼迦后书",3],["提摩太前书",6],["提摩太后书",4],["提多书",3],["腓利门书",1],["希伯来书",13],["雅各书",5],["彼得前书",5],["彼得后书",3],["约翰一书",5],["约翰二书",1],["约翰三书",1],["犹大书",1],["启示录",22]];
+  function chapterSeq(books) {
+    var out = [];
+    books.forEach(function (b) { for (var c = 1; c <= b[1]; c++) out.push([b[0], c]); });
+    return out;
+  }
+  var OT_SEQ = chapterSeq(OT_BOOKS);   // 929 章
+  var NT_SEQ = chapterSeq(NT_BOOKS);   // 260 章
+  function seqIndex(seq, book, ch) {
+    for (var i = 0; i < seq.length; i++) if (seq[i][0] === book && seq[i][1] === ch) return i;
+    return 0;
+  }
+  var OT_ANCHOR_IDX = seqIndex(OT_SEQ, "耶利米哀歌", 5);
+  var NT_ANCHOR_IDX = seqIndex(NT_SEQ, "以弗所书", 5);
+  function utcDay(ds) {
+    var p = ds.split("-");
+    return Date.UTC(+p[0], +p[1] - 1, +p[2]) / 86400000;
+  }
+  function mod(n, m) { return ((n % m) + m) % m; }
+  function computedReading(ds) {
+    var diff = utcDay(ds) - utcDay(PLAN_ANCHOR);
+    var oi = mod(OT_ANCHOR_IDX + diff, OT_SEQ.length);
+    var ni = mod(NT_ANCHOR_IDX + diff, NT_SEQ.length);
+    var ob = OT_SEQ[oi], nb = NT_SEQ[ni];
+    var ref = ob[0] + " " + ob[1] + "章 · " + nb[0] + " " + nb[1] + "章";
+    return {
+      id: null, plan_id: null, read_date: ds, reference: ref, key_verse: "",
+      otPos: oi + 1, ntPos: ni + 1, diff: diff,
+      content: "请打开圣经（新译本）阅读今日经文：" + ob[0] + "第" + ob[1] + "章、" + nb[0] + "第" + nb[1] + "章。\n经文全文待版权确认后由管理员录入，现请配合纸本圣经或圣经 App 阅读。"
+    };
+  }
+
   async function loadToday() {
     var t = todayStr();
     try {
-      var res = await sb.from("readings")
-        .select("*, reading_plans(title)")
-        .eq("read_date", t)
-        .order("created_at", { ascending: true })
-        .limit(1);
-      if (res.error) throw res.error;
-      var r = (res.data || [])[0];
-      if (!r) {
-        S.todayReading = null;
-        S.todayIsSample = true;
-        var tag = $("#sampleTag"); if (tag) tag.hidden = false;
-        return;
-      }
+      var r = computedReading(t);
       S.todayReading = r;
-      S.planTitle = (r.reading_plans && r.reading_plans.title) || "";
+      S.todayIsSample = false;
+      S.planTitle = "每日读经计划";
       $("#todayPlanLabel").textContent = S.planTitle || "今日读经";
       $("#todayPassage").textContent = r.reference;
       var theme = $("#todayTheme");
@@ -1452,25 +1481,19 @@
       }
       var cr = $("#composeRefText");
       if (cr) cr.textContent = r.reference + " · 今日经文";
-      // 计划进度：该计划已排经文天数中，今天及以前所占比例
-      if (r.plan_id) {
-        var all = await sb.from("readings").select("read_date").eq("plan_id", r.plan_id).order("read_date", { ascending: true });
-        if (!all.error && all.data && all.data.length) {
-          var total = all.data.length;
-          var upto = all.data.filter(function (x) { return x.read_date <= t; }).length;
-          var pct = Math.round(upto / total * 100);
-          $("#ringPct").textContent = pct + "%";
-          var arc = $("#ringArc");
-          if (arc) arc.setAttribute("stroke-dashoffset", String(Math.round(201 * (1 - pct / 100))));
-          if (S.planTitle) $("#todayPlanLabel").textContent = S.planTitle + " · 第 " + upto + " 天";
-          $("#planBarTitle").textContent = S.planTitle || "读经计划";
-          $("#planBarNum").textContent = "第 " + upto + " / " + total + " 天";
-          $("#planBarFill").style.width = pct + "%";
-          $("#planBarDesc").textContent = "本计划共排了 " + total + " 天的经文，今天读「" + r.reference + "」。";
-        }
-      } else {
-        var rw = $("#ringWrap"); if (rw) rw.style.display = "none";
-      }
+      // 计划进度：按日期自动计算。圆环显示新约本轮进度（260 章一轮），
+      // 旧约一轮 929 章，进度条下方文字里一并说明。
+      var pct = Math.round(r.ntPos / NT_SEQ.length * 100);
+      $("#ringPct").textContent = pct + "%";
+      var ringLabel = document.querySelector(".ring-num span");
+      if (ringLabel) ringLabel.textContent = "新约本轮进度";
+      var arc = $("#ringArc");
+      if (arc) arc.setAttribute("stroke-dashoffset", String(Math.round(201 * (1 - pct / 100))));
+      if (r.diff >= 0) $("#todayPlanLabel").textContent = S.planTitle + " · 第 " + (r.diff + 1) + " 天";
+      $("#planBarTitle").textContent = S.planTitle;
+      $("#planBarNum").textContent = r.diff >= 0 ? ("第 " + (r.diff + 1) + " 天") : "";
+      $("#planBarFill").style.width = pct + "%";
+      $("#planBarDesc").textContent = "每天旧约 1 章、新约 1 章，按日期自动排定，今天读「" + r.reference + "」。新约本轮第 " + r.ntPos + " / 260 章，旧约本轮第 " + r.otPos + " / 929 章。";
     } catch (e) {
       S.todayIsSample = true;
       var tag2 = $("#sampleTag"); if (tag2) tag2.hidden = false;
@@ -1481,13 +1504,12 @@
     try {
       var now = new Date();
       var monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-      var sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
-      var res = await sb.from("readings")
-        .select("*")
-        .gte("read_date", dateStr(monday)).lte("read_date", dateStr(sunday))
-        .order("read_date", { ascending: true });
-      if (res.error) throw res.error;
-      S.weekReadings = res.data || [];
+      // 本周经文同样按日期自动计算（周一到周日）
+      S.weekReadings = [];
+      for (var wd = 0; wd < 7; wd++) {
+        var day = new Date(monday); day.setDate(monday.getDate() + wd);
+        S.weekReadings.push(computedReading(dateStr(day)));
+      }
       var list = $("#weekList");
       if (!S.weekReadings.length) {
         list.innerHTML = '<p style="color:var(--muted);font-size:15px;padding:10px 2px">本周的经文还没有排定，请联系管理员或小组长。</p>';
