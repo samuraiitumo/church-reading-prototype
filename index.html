@@ -355,6 +355,9 @@
       .verses p { margin-bottom: 10px; }
       .verses .vn { font-size: .62em; color: var(--gold); font-weight: 700; vertical-align: super; margin-right: 5px; font-family: "Noto Sans SC", sans-serif; }
       .verses .hl { background: linear-gradient(transparent 62%, rgba(185,143,46,.32) 62%); border-radius: 2px; }
+      .verses .chap-head { font-size: 20px; font-weight: 700; text-align: center; margin: 26px 0 8px; }
+      .verses .chap-head:first-child { margin-top: 2px; }
+      .verses .chap-note { text-align: center; color: var(--rmut); font-size: 13px; font-family: "Noto Sans SC", sans-serif; margin-top: 20px; }
       .reader-foot { display: flex; gap: 10px; margin-top: 26px; }
       .reader-foot .btn { flex: 1; }
 
@@ -948,12 +951,56 @@
       return "<p>" + escapeHtml(line) + "</p>";
     }).join("");
   }
-  function openReading(r) {
+  /* 站内全文：和合本（公有领域），按书卷/章从 bible_verses 表取。
+     教会读经译本仍为新译本（仅出处），页尾有对照提示。 */
+  var scriptureCache = {};
+  async function fetchChapter(book, ch) {
+    var key = book + "|" + ch;
+    if (scriptureCache[key]) return scriptureCache[key];
+    var res = await sb.from("bible_verses").select("verse, text")
+      .eq("version", "CUV").eq("book", book).eq("chapter", ch)
+      .order("verse", { ascending: true });
+    if (res.error) throw res.error;
+    scriptureCache[key] = res.data || [];
+    return scriptureCache[key];
+  }
+  function chapterHtml(book, ch, verses) {
+    var h = '<h3 class="chap-head">' + escapeHtml(book) + " 第" + ch + "章</h3>";
+    h += verses.map(function (v, i) {
+      /* 合节：和合本有若干节与上一节合并排印（如创24:29-30），库中无独立行；
+         节号缺口处按新标点和合本的标法显示为节段（如 29-30）。 */
+      var label = String(v.verse);
+      var next = verses[i + 1];
+      if (next && next.verse > v.verse + 1) label = v.verse + "-" + (next.verse - 1);
+      return '<p><span class="vn">' + label + "</span>" + escapeHtml(v.text) + "</p>";
+    }).join("");
+    return h;
+  }
+  async function openReading(r) {
     if (FORMAL && r) {
       $("#readerRef").textContent = r.reference || "今日经文";
       $("#readerTitle").textContent = r.reference || "今日经文";
       $("#readerSub").textContent = r.read_date ? (r.read_date + " · 读完后在页尾打卡") : "读完后在页尾打卡";
       if (r.content) $("#verses").innerHTML = formatContent(r.content);
+      openSheet("reader");
+      if (r.ot && r.nt) {
+        $("#verses").innerHTML = '<p style="color:var(--rmut)">正在加载经文全文…</p>';
+        try {
+          var otv = await fetchChapter(r.ot[0], r.ot[1]);
+          var ntv = await fetchChapter(r.nt[0], r.nt[1]);
+          if (otv.length && ntv.length) {
+            $("#verses").innerHTML =
+              chapterHtml(r.ot[0], r.ot[1], otv) +
+              chapterHtml(r.nt[0], r.nt[1], ntv) +
+              '<p class="chap-note">站内经文：和合本（公有领域）· 教会读经译本为新译本，请对照新译本阅读</p>';
+            return;
+          }
+          if (r.content) $("#verses").innerHTML = formatContent(r.content);
+        } catch (e) {
+          if (r.content) $("#verses").innerHTML = formatContent(r.content);
+        }
+      }
+      return;
     }
     openSheet("reader");
   }
@@ -1426,7 +1473,8 @@
      读经计划：按日期自动计算（不依赖数据库预排）
      规则：每天旧约 1 章 + 新约 1 章，各自按书卷顺序推进，读完自动回绕。
      锚点：2026-11-17 = 耶利米哀歌 5 章 + 以弗所书 5 章（教会确认）。
-     译本：新译本（仅给出经文出处；全文版权确认后由管理员录入）
+     译本：教会读经用新译本（仅给出出处）；站内阅读全文为公有领域的
+     和合本，存于 bible_verses 表，按书卷/章从数据库实时取。
   ================================================================ */
   var PLAN_ANCHOR = "2026-11-17";
   var OT_BOOKS = [["创世纪",50],["出埃及记",40],["利未记",27],["民数记",36],["申命记",34],["约书亚记",24],["士师记",21],["路得记",4],["撒母耳记上",31],["撒母耳记下",24],["列王纪上",22],["列王纪下",25],["历代志上",29],["历代志下",36],["以斯拉记",10],["尼希米记",13],["以斯帖记",10],["约伯记",42],["诗篇",150],["箴言",31],["传道书",12],["雅歌",8],["以赛亚书",66],["耶利米书",52],["耶利米哀歌",5],["以西结书",48],["但以理书",12],["何西阿书",14],["约珥书",3],["阿摩司书",9],["俄巴底亚书",1],["约拿书",4],["弥迦书",7],["那鸿书",3],["哈巴谷书",3],["西番雅书",3],["哈该书",2],["撒迦利亚书",14],["玛拉基书",4]];
@@ -1457,8 +1505,9 @@
     var ref = ob[0] + " " + ob[1] + "章 · " + nb[0] + " " + nb[1] + "章";
     return {
       id: null, plan_id: null, read_date: ds, reference: ref, key_verse: "",
+      ot: ob, nt: nb,
       otPos: oi + 1, ntPos: ni + 1, diff: diff,
-      content: "请打开圣经（新译本）阅读今日经文：" + ob[0] + "第" + ob[1] + "章、" + nb[0] + "第" + nb[1] + "章。\n经文全文待版权确认后由管理员录入，现请配合纸本圣经或圣经 App 阅读。"
+      content: "今日经文：" + ob[0] + "第" + ob[1] + "章、" + nb[0] + "第" + nb[1] + "章（教会读经译本：新译本）。\n站内附和合本全文供阅读；如未能加载，请配合纸本圣经或圣经 App 阅读。"
     };
   }
 
