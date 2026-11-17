@@ -443,3 +443,10 @@ button, [role="button"], select, summary, input:not([type="checkbox"], [type="ra
       .onboard-card .x { position: absolute; top: 6px; right: 8px; background: transparent; border: 0; font-size: 19px; color: var(--muted); cursor: pointer; padding: 4px 6px; }
       .pw-show { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); margin-top: 10px; cursor: pointer; }
       .pw-show input { width: 18px; height: 18px; accent-color: var(--olive); }
+      .verses p.hl-on { background: rgba(185, 143, 46, .14); border-radius: 8px; box-shadow: inset 3px 0 0 var(--gold); padding: 6px 9px; margin-left: -9px; margin-right: -9px; }
+      .verses p.verse-sel { outline: 2px solid var(--gold); outline-offset: 1px; border-radius: 8px; }
+      .verse-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1.5px solid var(--line); box-shadow: 0 -8px 24px rgba(60, 50, 20, .10); }
+      .verse-bar .vb-ref { font-weight: 800; font-size: 14.5px; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .verse-bar .btn { min-height: 40px; padding: 8px 13px; white-space: nowrap; }
+      .verse-bar .x { flex: none; background: transparent; border: 0; font-size: 20px; color: var(--muted); cursor: pointer; padding: 4px 6px; }
+      .note-goto { float: right; border: 0; background: none; color: var(--olive); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; padding: 2px 4px; margin-right: 8px; }
