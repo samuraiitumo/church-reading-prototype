@@ -282,6 +282,7 @@
     $("#remindOn").checked = !!settings.remindOn;
     $("#remindTime").value = settings.remindTime || "07:00";
     syncSizeSeg(); applyNight();
+    refreshPushUI();
     var sec = $("#setAccountSec");
     if (FORMAL && S.user) {
       sec.style.display = "";
@@ -354,6 +355,82 @@
       $("#newPw").value = ""; $("#newPw2").value = "";
       toast("密码已更新，下次用新密码登录");
     } catch (e) { msg.textContent = "保存没有成功，请重新登录后再试。"; }
+  });
+
+  /* ---- 推送通知（Web Push）：订阅存 push_subscriptions 表，
+     每天 7:00 由 Supabase Edge Function + pg_cron 统一发送 ---- */
+  var pushReg = null;
+  function urlB64ToUint8Array(base64String) {
+    var padding = "=".repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var raw = atob(base64);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+  function vapidKey() { return (window.APP_CONFIG && window.APP_CONFIG.VAPID_PUBLIC_KEY) || ""; }
+  if (FORMAL && "serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").then(function (reg) { pushReg = reg; }).catch(function () {});
+  }
+  async function pushState() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return { supported: false };
+    var reg = pushReg;
+    if (!reg) { try { reg = await navigator.serviceWorker.getRegistration(); } catch (e) {} }
+    var sub = null;
+    if (reg) { try { sub = await reg.pushManager.getSubscription(); } catch (e) {} }
+    return { supported: true, permission: Notification.permission, subscribed: !!sub, endpoint: sub ? sub.endpoint : null };
+  }
+  async function refreshPushUI() {
+    var btn = $("#pushBtn"), st = $("#pushStatus");
+    if (!btn || !st) return;
+    if (!FORMAL) { btn.style.display = "none"; st.textContent = "演示模式下不可用。"; return; }
+    if (!vapidKey()) { btn.style.display = "none"; st.textContent = "管理员尚未配置推送服务。"; return; }
+    var s = await pushState();
+    if (!s.supported) {
+      btn.style.display = "none";
+      st.textContent = "这台设备的浏览器暂不支持推送。iPhone 请先把网站「添加到主屏幕」，再从桌面图标打开来开启。";
+      return;
+    }
+    btn.style.display = "";
+    if (s.permission === "denied") {
+      btn.disabled = true; btn.textContent = "已被系统拒绝";
+      st.textContent = "通知权限被拒绝了。请到浏览器或系统设置里允许本站通知，再回来开启。";
+      return;
+    }
+    btn.disabled = false;
+    btn.textContent = s.subscribed ? "关闭推送" : "开启推送";
+    st.textContent = s.subscribed ? "已开启：每天早上 7:00 会收到读经提醒推送。" : "开启后，每天早上 7:00 即使没打开网站，也会收到读经提醒。";
+  }
+  $("#pushBtn").addEventListener("click", async function () {
+    if (!FORMAL || !S.user) { toast("请先登录"); return; }
+    var reg = pushReg;
+    if (!reg) { try { reg = await navigator.serviceWorker.ready; pushReg = reg; } catch (e) {} }
+    if (!reg) { toast("推送组件还没准备好，请稍后再试"); return; }
+    var s = await pushState();
+    if (s.subscribed) {
+      try {
+        var sub = await reg.pushManager.getSubscription();
+        var ep = sub ? sub.endpoint : null;
+        if (sub) await sub.unsubscribe();
+        if (ep) { try { await sb.from("push_subscriptions").delete().eq("endpoint", ep); } catch (e) {} }
+        toast("推送已关闭");
+      } catch (e) { toast("关闭没有成功，请再试一次"); }
+      refreshPushUI();
+      return;
+    }
+    try {
+      var perm = await Notification.requestPermission();
+      if (perm !== "granted") { toast("没有获得通知权限，推送未开启"); refreshPushUI(); return; }
+      var sub2 = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8Array(vapidKey()) });
+      var j = sub2.toJSON();
+      var res = await sb.from("push_subscriptions").upsert(
+        { user_id: S.user.id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth },
+        { onConflict: "endpoint" }
+      );
+      if (res.error) throw res.error;
+      toast("推送已开启，每天早上 7:00 提醒你读经");
+    } catch (e) { toast("开启没有成功（可能推送服务还没部署完）"); }
+    refreshPushUI();
   });
 
   /* ---- 我的祷告清单 ---- */
@@ -645,6 +722,160 @@
       closeSheets();
       openReading({ single: [p2[0], +p2[1]], reference: p2[0] + " 第" + p2[1] + "章", read_date: null, content: "" });
     }
+  });
+
+  /* ================================================================
+     管理员界面：成员管理（小组/角色/停用）+ 小组管理（增/改名/删）
+     数据权限由数据库 RLS 保证（profiles_update 与 groups_write
+     都只允许管理员改动他人/小组），这里只是操作界面。
+  ================================================================ */
+  function isAdmin() { return !!(FORMAL && S.profile && S.profile.role === "admin"); }
+  $("#openAdminBtn").addEventListener("click", function () { openSheet("adminSheet"); renderAdmin(); });
+  $("#inactiveOutBtn").addEventListener("click", async function () {
+    try { await sb.auth.signOut(); } catch (e) {}
+    location.reload();
+  });
+  async function renderAdmin() {
+    if (!isAdmin()) return;
+    try {
+      var members = await sb.from("profiles").select("id, display_name, username, role, group_id, is_active, created_at").order("created_at", { ascending: true });
+      if (members.error) throw members.error;
+      S.adminMembers = members.data || [];
+      var ckCount = 0;
+      try {
+        var cks = await sb.from("checkins").select("user_id").eq("checkin_date", todayStr());
+        if (!cks.error) {
+          var seen = {};
+          (cks.data || []).forEach(function (c) { seen[c.user_id] = true; });
+          ckCount = Object.keys(seen).length;
+        }
+      } catch (e) {}
+      $("#adminStats").textContent = "成员 " + S.adminMembers.length + " 人 · 小组 " + S.groups.length + " 个 · 今日已打卡 " + ckCount + " 人";
+      renderAdminMembers();
+      renderAdminGroups();
+    } catch (e) {
+      $("#adminMembers").innerHTML = '<p class="set-note">加载失败，请检查网络后再试。</p>';
+    }
+  }
+  function renderAdminMembers() {
+    var box = $("#adminMembers");
+    if (!box) return;
+    function groupOpts(sel) {
+      return '<option value="">（无小组）</option>' + S.groups.map(function (g) {
+        return '<option value="' + g.id + '"' + (g.id === sel ? " selected" : "") + ">" + escapeHtml(g.name) + "</option>";
+      }).join("");
+    }
+    function roleOpts(sel) {
+      return [["member", "成员"], ["leader", "小组长"], ["admin", "管理员"]].map(function (r) {
+        return '<option value="' + r[0] + '"' + (sel === r[0] ? " selected" : "") + ">" + r[1] + "</option>";
+      }).join("");
+    }
+    box.innerHTML = (S.adminMembers || []).map(function (m) {
+      var nm = m.display_name || "弟兄姐妹";
+      var self = m.id === S.user.id;
+      return '<div class="adm-row' + (m.is_active ? "" : " adm-off") + '">' +
+        '<span class="avatar" style="background:' + colorFor(nm) + '">' + escapeHtml(nm.charAt(0)) + "</span>" +
+        '<div class="adm-main"><div class="adm-name">' + escapeHtml(nm) + (self ? "（我）" : "") + "</div>" +
+        '<div class="adm-meta">' + (m.username ? "@" + escapeHtml(m.username) + " · " : "") + "加入于 " + String(m.created_at || "").slice(0, 10) + (m.is_active ? "" : " · 已停用") + "</div></div>" +
+        '<select class="adm-sel" data-adm-group="' + m.id + '" aria-label="所在小组">' + groupOpts(m.group_id) + "</select>" +
+        '<select class="adm-sel" data-adm-role="' + m.id + '"' + (self ? " disabled" : "") + ' aria-label="角色">' + roleOpts(m.role) + "</select>" +
+        '<button class="act-btn" data-adm-active="' + m.id + '"' + (self ? " disabled" : "") + ">" + (m.is_active ? "停用" : "启用") + "</button>" +
+        "</div>";
+    }).join("") || '<p class="set-note">还没有成员。</p>';
+  }
+  function renderAdminGroups() {
+    var box = $("#adminGroups");
+    if (!box) return;
+    var counts = {};
+    (S.adminMembers || []).forEach(function (m) { if (m.group_id) counts[m.group_id] = (counts[m.group_id] || 0) + 1; });
+    box.innerHTML = S.groups.map(function (g) {
+      if (S.grpEditing === g.id) {
+        return '<div class="adm-row"><div class="adm-main"><input class="text-input" id="grpNameInput" value="' + escapeHtml(g.name) + '" /></div>' +
+          '<button class="act-btn" data-grp-save="' + g.id + '">保存</button>' +
+          '<button class="act-btn" data-grp-cancel="1">取消</button></div>';
+      }
+      return '<div class="adm-row"><div class="adm-main"><div class="adm-name">' + escapeHtml(g.name) + '</div><div class="adm-meta">' + (counts[g.id] || 0) + ' 位成员</div></div>' +
+        '<button class="act-btn" data-grp-rename="' + g.id + '">改名</button>' +
+        '<button class="act-btn" data-grp-del="' + g.id + '">删除</button></div>';
+    }).join("") || '<p class="set-note">还没有小组。</p>';
+  }
+  async function adminUpdate(id, patch, okMsg) {
+    try {
+      var res = await sb.from("profiles").update(patch).eq("id", id);
+      if (res.error) throw res.error;
+      (S.adminMembers || []).forEach(function (m) { if (m.id === id) for (var k in patch) m[k] = patch[k]; });
+      if (id === S.user.id) { S.profile = await loadProfileRow(); fillMe(); }
+      toast(okMsg);
+      renderAdminMembers();
+      renderAdminGroups();
+    } catch (e) { toast("更新没有成功，请再试一次"); renderAdmin(); }
+  }
+  document.addEventListener("change", function (e) {
+    if (!isAdmin()) return;
+    var g = e.target.closest("[data-adm-group]");
+    if (g) { adminUpdate(g.getAttribute("data-adm-group"), { group_id: g.value || null }, "小组已更新"); return; }
+    var r = e.target.closest("[data-adm-role]");
+    if (r) adminUpdate(r.getAttribute("data-adm-role"), { role: r.value }, "角色已更新");
+  });
+  document.addEventListener("click", function (e) {
+    if (!isAdmin()) return;
+    var a = e.target.closest("[data-adm-active]");
+    if (a) {
+      var m = (S.adminMembers || []).filter(function (x) { return x.id === a.getAttribute("data-adm-active"); })[0];
+      if (m) adminUpdate(m.id, { is_active: !m.is_active }, m.is_active ? "已停用该成员" : "已启用该成员");
+      return;
+    }
+    var rn = e.target.closest("[data-grp-rename]");
+    if (rn) { S.grpEditing = rn.getAttribute("data-grp-rename"); renderAdminGroups(); return; }
+    if (e.target.closest("[data-grp-cancel]")) { S.grpEditing = null; renderAdminGroups(); return; }
+    var sv = e.target.closest("[data-grp-save]");
+    if (sv) {
+      var gid = sv.getAttribute("data-grp-save");
+      var name = ($("#grpNameInput") || {}).value || "";
+      name = name.trim();
+      if (!name) { toast("小组名不能为空"); return; }
+      (async function () {
+        try {
+          var res = await sb.from("groups").update({ name: name }).eq("id", gid);
+          if (res.error) throw res.error;
+          S.grpEditing = null;
+          await loadGroups();
+          fillMe();
+          toast("小组已改名");
+          renderAdmin();
+        } catch (err) { toast("改名失败（名字可能已被占用）"); }
+      })();
+      return;
+    }
+    var del = e.target.closest("[data-grp-del]");
+    if (del) {
+      var g2 = S.groups.filter(function (x) { return x.id === del.getAttribute("data-grp-del"); })[0];
+      if (!g2) return;
+      if (!window.confirm("确定要删除小组「" + g2.name + "」吗？组员会变成未分组，可再重新分配。")) return;
+      (async function () {
+        try {
+          var res = await sb.from("groups").delete().eq("id", g2.id);
+          if (res.error) throw res.error;
+          await loadGroups();
+          fillMe();
+          toast("小组已删除");
+          renderAdmin();
+        } catch (err) { toast("删除没有成功，请再试一次"); }
+      })();
+    }
+  });
+  $("#addGroupBtn").addEventListener("click", async function () {
+    if (!isAdmin()) return;
+    var name = $("#newGroupName").value.trim();
+    if (!name) { toast("先输入新小组的名称"); return; }
+    try {
+      var res = await sb.from("groups").insert({ name: name });
+      if (res.error) throw res.error;
+      $("#newGroupName").value = "";
+      await loadGroups();
+      toast("小组已添加");
+      renderAdmin();
+    } catch (e) { toast("添加失败（小组名可能已存在）"); }
   });
 
   /* ---- 新成员三步引导卡（关闭后不再显示） ---- */
@@ -1444,6 +1675,8 @@
     $("#meMeta").textContent = (myGroupName() || "还没有选小组") + " · " + roleLabel;
     var gl = $("#meGroupLabel");
     if (gl) gl.textContent = "我的小组 · " + (myGroupName() || "未选择");
+    var ab = $("#openAdminBtn");
+    if (ab) ab.style.display = p.role === "admin" ? "" : "none";
     $$(".group-scope-name").forEach(function (el) { el.textContent = myGroupName() || "我的小组"; });
     var greet = $("#greetLine");
     if (greet) greet.textContent = greetingWord() + "，" + nm;
@@ -1479,6 +1712,7 @@
     $("#authStepLogin").hidden = step !== "login";
     $("#authStepRegister").hidden = step !== "register";
     $("#authStepProfile").hidden = step !== "profile";
+    var ina = $("#authStepInactive"); if (ina) ina.hidden = step !== "inactive";
     fab.classList.remove("show");
   }
   function hideGate() { if (gate) gate.hidden = true; }
@@ -1605,6 +1839,10 @@
         var up = await sb.from("profiles").update({ username: uname }).eq("id", user.id);
         if (!up.error) S.profile.username = uname;
       } catch (e) { /* 补写用户名失败不影响使用 */ }
+    }
+    if (S.profile && S.profile.is_active === false) {
+      showGate("inactive");
+      return;
     }
     if (!S.profile || !S.profile.display_name || !S.profile.group_id) {
       showProfileSetup(S.profile);

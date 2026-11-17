@@ -450,3 +450,9 @@ button, [role="button"], select, summary, input:not([type="checkbox"], [type="ra
       .verse-bar .btn { min-height: 40px; padding: 8px 13px; white-space: nowrap; }
       .verse-bar .x { flex: none; background: transparent; border: 0; font-size: 20px; color: var(--muted); cursor: pointer; padding: 4px 6px; }
       .note-goto { float: right; border: 0; background: none; color: var(--olive); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; padding: 2px 4px; margin-right: 8px; }
+      .adm-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+      .adm-row .adm-main { flex: 1; min-width: 120px; }
+      .adm-row .adm-name { font-weight: 800; font-size: 15.5px; }
+      .adm-row .adm-meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+      .adm-sel { border: 1.5px solid var(--line); border-radius: 10px; padding: 7px 8px; font: inherit; font-size: 13.5px; background: var(--surface); color: var(--ink); max-width: 128px; }
+      .adm-off { opacity: .55; }

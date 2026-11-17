@@ -16,5 +16,8 @@
 // ============================================================
 window.APP_CONFIG = {
   SUPABASE_URL: "https://bjvszldtzzrtyizpagkj.supabase.co",
-  SUPABASE_ANON_KEY: "sb_publishable_xm_1YZMtu552gilr63cJdA_eAqIX8yH"
+  SUPABASE_ANON_KEY: "sb_publishable_xm_1YZMtu552gilr63cJdA_eAqIX8yH",
+  // 推送通知的公钥（VAPID public key，公开值，放前端没问题；
+  // 对应的私钥只存在 Supabase Edge Function 的密钥里，绝不写进仓库）
+  VAPID_PUBLIC_KEY: "BITC7eZocV1bOPWrM6TfNKNXG9PGwzmyjGzMlXXhGkDoW1_0S_TAS_IJgGtBWQODmdgPi6qX6-LVJwWmMxsWwDo"
 };
