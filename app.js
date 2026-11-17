@@ -368,6 +368,7 @@
     var del = e.target.closest("[data-mypray-del]");
     if (!st && !del) return;
     if (!FORMAL) { toast("演示模式：操作不会保存"); return; }
+    if (del && !window.confirm("确定要删除这条代祷吗？删除后就看不到了。")) return;
     (async function () {
       try {
         var res;
@@ -461,6 +462,18 @@
     setTimeout(function () { var nt = $("#noteText"); if (nt) nt.focus(); }, 80);
     toast("为「" + ref + "」写笔记");
   });
+
+  /* ---- 新成员三步引导卡（关闭后不再显示） ---- */
+  var obCard = $("#onboardCard");
+  if (obCard) {
+    var obDone = false;
+    try { obDone = !!localStorage.getItem("churchOnboarded"); } catch (e) {}
+    if (!obDone) obCard.hidden = false;
+    $("#onboardDismiss").addEventListener("click", function () {
+      obCard.hidden = true;
+      try { localStorage.setItem("churchOnboarded", "1"); } catch (e) {}
+    });
+  }
 
   /* ---------------- calendar ---------------- */
   var calCursor = new Date(); calCursor.setDate(1);
@@ -727,8 +740,12 @@
     }
     checkReminder();
   }
+  var checkinBusy = false;
   async function formalCheckin() {
+    if (checkinBusy) return;
     var d = todayStr();
+    if (S.myCheckins[d] && !window.confirm("确定要取消今天的打卡吗？")) return;
+    checkinBusy = true;
     try {
       if (S.myCheckins[d]) {
         var del = await sb.from("checkins").delete().eq("user_id", S.user.id).eq("checkin_date", d);
@@ -749,7 +766,7 @@
       loadGroupToday();
     } catch (e) {
       toast("打卡没有成功，请检查网络后再试一次");
-    }
+    } finally { checkinBusy = false; }
   }
   document.addEventListener("click", function (e) {
     if (e.target.closest("[data-checkin]")) { if (FORMAL) formalCheckin(); else demoCheckin(); }
@@ -761,11 +778,6 @@
     if (!text) { toast("先写一句你的领受吧"); return; }
     var scope = getComposeScope();
     if (!FORMAL) {
-      if (scope === "mine") {
-        closeSheets(); $("#composeText").value = "";
-        toast("已存入我的私密笔记");
-        return;
-      }
       var card = shareCard({
         id: "", cat: "mine", vis: visOf(scope), name: "陈安琪（我）",
         meta: "以琳小组 · 刚刚", ref: "约翰福音 15:1–17", body: text, amen: 0, pray: 0, comments: 0, showPray: true
@@ -775,9 +787,11 @@
       n.textContent = parseInt(n.textContent, 10) + 1;
       $("#composeText").value = "";
       closeSheets(); go("share"); setShareFilter("all");
-      toast("分享已发布");
+      toast(scope === "mine" ? "已保存，仅自己可见" : "分享已发布");
       return;
     }
+    var btn = this;
+    btn.disabled = true; btn.textContent = "发布中…";
     try {
       var res = await sb.from("shares").insert({
         user_id: S.user.id,
@@ -793,6 +807,7 @@
       setShareFilter("all");
       toast("分享已发布");
     } catch (e) { toast("发布没有成功，请检查网络后再试"); }
+    finally { btn.disabled = false; btn.textContent = "发布分享"; }
   });
 
   $("#publishPrayerBtn").addEventListener("click", async function () {
@@ -812,6 +827,8 @@
       toast("已发布到祷告墙");
       return;
     }
+    var btn2 = this;
+    btn2.disabled = true; btn2.textContent = "发布中…";
     try {
       var res = await sb.from("prayers").insert({
         user_id: S.user.id,
@@ -824,6 +841,7 @@
       await loadPrayers();
       toast("已发布到祷告墙");
     } catch (e) { toast("发布没有成功，请检查网络后再试"); }
+    finally { btn2.disabled = false; btn2.textContent = "发布到祷告墙"; }
   });
 
   /* ---------------- answered (formal) ---------------- */
@@ -885,6 +903,7 @@
     }
     var del = e.target.closest("[data-del-note]");
     if (del && FORMAL) {
+      if (!window.confirm("确定要删除这篇笔记吗？")) return;
       (async function () {
         try {
           var res = await sb.from("notes").delete().eq("id", del.getAttribute("data-del-note"));
@@ -1088,7 +1107,7 @@
       }).join("");
       $("#groupCardTitle").textContent = (myGroupName() || "我的小组") + " · 今日读经";
       $("#groupCount").textContent = doneCount;
-      $("#gAvatars").innerHTML = avatars + '<span class="g-count">' + doneCount + " / " + list.length + " 人</span>";
+      $("#gAvatars").innerHTML = avatars + '<span class="g-count">' + doneCount + " / " + list.length + " 人" + (doneCount === 0 ? " · 还没人打卡，来做第一个" : "") + "</span>";
     } catch (e) {
       if (card) card.style.display = "none";
     }
@@ -1268,6 +1287,14 @@
     } catch (e) { authMsg(authError(e, "登录没有成功，请检查网络后再试一次。")); }
   }
   $("#loginBtn").addEventListener("click", doLogin);
+  $$(".pw-toggle").forEach(function (cb) {
+    cb.addEventListener("change", function () {
+      cb.getAttribute("data-pw-targets").split(",").forEach(function (id) {
+        var inp = document.getElementById(id);
+        if (inp) inp.type = cb.checked ? "text" : "password";
+      });
+    });
+  });
   $("#loginPw").addEventListener("keydown", function (ev) { if (ev.key === "Enter") doLogin(); });
   async function doRegister() {
     var uname = $("#regName").value.trim().toLowerCase();

@@ -4,7 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <link rel="icon" href="data:," />
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#FAF7F2" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="教会读经" />
     <title>教会读经祷告分享</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -24,6 +30,15 @@
             <span>⏰ 已经过了今天的提醒时间，经文还没读哦。</span>
             <button class="go" data-open-reader>开始读经</button>
             <button class="x" id="remindDismiss" aria-label="今天不再提示">×</button>
+          </div>
+          <div class="onboard-card" id="onboardCard" hidden>
+            <button class="x" id="onboardDismiss" aria-label="关闭引导">×</button>
+            <h3>欢迎来到教会读经 👋</h3>
+            <ol>
+              <li>点「开始读经」，读今天的经文</li>
+              <li>读完点「读完打卡」，记下连续天数</li>
+              <li>有感动就写一句分享，或为家人发起代祷</li>
+            </ol>
           </div>
           <div class="date-row">
             <div>
@@ -298,12 +313,12 @@
             <p><span class="vn">16</span>不是你们拣选了我，是我拣选了你们，并且分派你们去结果子，叫你们的果子长存，使你们奉我的名，无论向父求什么，他就赐给你们。</p>
             <p><span class="vn">17</span>我这样吩咐你们，是要叫你们彼此相爱。</p>
           </div>
+          <p style="text-align:center;font-size:13px;margin-top:16px" ><span style="color:var(--rmut)" id="readerTip">小提示：点任意一节经文，可以为它写私密笔记</span></p>
           <div class="reader-foot">
             <button class="btn btn-ghost" id="readerPrev">← 前一天</button>
             <button class="btn btn-olive" data-checkin id="readerCheckinBtn">✓ 读完打卡</button>
             <button class="btn btn-ghost" id="readerNext">后一天 →</button>
           </div>
-          <p style="text-align:center;font-size:13px;margin-top:16px" ><span style="color:var(--rmut)" id="readerTip">小提示：点任意一节经文，可以为它写私密笔记</span></p>
         </div>
       </div>
 
@@ -331,7 +346,7 @@
             <button data-scope="all"><b>全教会</b><span>所有成员</span></button>
           </div>
           <button class="btn btn-olive" id="publishBtn" style="width:100%;margin-top:24px;min-height:50px;font-size:16.5px">发布分享</button>
-          <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:12px">选「仅自己」时，这篇会存进我的私密笔记，不会出现在分享流里。</p>
+          <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:12px">选「仅自己」时，只有你自己能在「分享」页的「我的」里看到它，不会出现在大家的信息流里。</p>
         </div>
       </div>
 
@@ -412,6 +427,8 @@
             <button class="btn btn-olive" id="changePwBtn" style="width:100%;margin-top:12px">保存新密码</button>
             <p class="auth-msg" id="pwMsg"></p>
           </div>
+          <div class="field-label">小提示</div>
+          <p class="set-note" style="margin-top:0">把网站「添加到主屏幕」（在浏览器菜单里找），以后点桌面上的图标就能直接打开，像 App 一样方便。</p>
         </div>
       </div>
 
@@ -470,6 +487,7 @@
             <input class="text-input auth-input" id="loginId" type="text" autocomplete="username" placeholder="输入注册时的用户名" />
             <div class="field-label">密码</div>
             <input class="text-input auth-input" id="loginPw" type="password" autocomplete="current-password" placeholder="输入密码" />
+            <label class="pw-show"><input type="checkbox" class="pw-toggle" data-pw-targets="loginPw" />显示密码</label>
             <button class="btn btn-olive auth-btn" id="loginBtn">登录</button>
             <button class="btn btn-ghost auth-btn" id="gotoRegisterBtn">还没有账号？注册一个</button>
             <p class="auth-hint">用用户名和密码直接登录，不用再等邮件。<br/>忘记密码请联系管理员重置。</p>
@@ -482,6 +500,7 @@
             <input class="text-input auth-input" id="regPw" type="password" autocomplete="new-password" placeholder="输入密码" />
             <div class="field-label">再输入一次密码</div>
             <input class="text-input auth-input" id="regPw2" type="password" autocomplete="new-password" placeholder="确认密码" />
+            <label class="pw-show"><input type="checkbox" class="pw-toggle" data-pw-targets="regPw,regPw2" />显示密码</label>
             <button class="btn btn-olive auth-btn" id="registerBtn">注册并登录</button>
             <button class="btn btn-ghost auth-btn" id="gotoLoginBtn">已有账号？去登录</button>
             <p class="auth-hint">用户名请记牢，登录时要用。<br/>注册完再填姓名和小组，就能开始使用了。</p>

@@ -8,7 +8,7 @@ button, [role="button"], select, summary, input:not([type="checkbox"], [type="ra
         --surface-2: #F3EDE1;
         --ink: #2E2A22;
         --ink-2: #5C5546;
-        --muted: #8A8171;
+        --muted: #6F695B;
         --line: #E7DECD;
         --olive: #4C5B3C;
         --olive-deep: #39462C;
@@ -344,7 +344,7 @@ button, [role="button"], select, summary, input:not([type="checkbox"], [type="ra
       .verses .chap-head { font-size: 20px; font-weight: 700; text-align: center; margin: 26px 0 8px; }
       .verses .chap-head:first-child { margin-top: 2px; }
       .verses .chap-note { text-align: center; color: var(--rmut); font-size: 13px; font-family: "Noto Sans SC", sans-serif; margin-top: 20px; }
-      .reader-foot { display: flex; gap: 10px; margin-top: 26px; }
+      .reader-foot { display: flex; gap: 10px; position: sticky; bottom: -30px; margin: 26px -20px -30px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: var(--rbg); box-shadow: 0 -10px 24px rgba(60, 50, 20, .12); z-index: 3; }
       .reader-foot .btn { flex: 1; }
 
       /* compose */
@@ -437,3 +437,9 @@ button, [role="button"], select, summary, input:not([type="checkbox"], [type="ra
       .comment-form .text-input { flex: 1; min-height: 44px; font-size: 15px; }
       .comment-form .btn { min-height: 44px; padding: 8px 16px; }
       .note-del { float: right; border: 0; background: none; color: var(--rose); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; padding: 2px 4px; }
+      .onboard-card { background: var(--olive-soft); border: 1.5px solid var(--line); border-radius: 18px; padding: 16px 18px; margin-bottom: 16px; position: relative; }
+      .onboard-card h3 { margin: 0 0 8px; font-size: 16.5px; }
+      .onboard-card ol { margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.9; color: var(--ink-2); }
+      .onboard-card .x { position: absolute; top: 6px; right: 8px; background: transparent; border: 0; font-size: 19px; color: var(--muted); cursor: pointer; padding: 4px 6px; }
+      .pw-show { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-2); margin-top: 10px; cursor: pointer; }
+      .pw-show input { width: 18px; height: 18px; accent-color: var(--olive); }
