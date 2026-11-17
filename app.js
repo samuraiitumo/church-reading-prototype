@@ -1199,6 +1199,7 @@
     $("#meMeta").textContent = (myGroupName() || "还没有选小组") + " · " + roleLabel;
     var gl = $("#meGroupLabel");
     if (gl) gl.textContent = "我的小组 · " + (myGroupName() || "未选择");
+    $$(".group-scope-name").forEach(function (el) { el.textContent = myGroupName() || "我的小组"; });
     var greet = $("#greetLine");
     if (greet) greet.textContent = greetingWord() + "，" + nm;
     refreshCheckinUI();
