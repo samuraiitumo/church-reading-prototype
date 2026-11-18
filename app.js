@@ -136,18 +136,45 @@
       return "<p>" + escapeHtml(line) + "</p>";
     }).join("");
   }
-  /* 站内全文：和合本（公有领域），按书卷/章从 bible_verses 表取。
-     教会读经译本仍为新译本（仅出处），页尾有对照提示。 */
+  /* 站内全文：按书卷/章从 bible_verses 表取，三个译本可切换：
+     CNV 新译本（教会读经译本，默认）、CUV 和合本（公有领域）、
+     JPN 新改訳2017。所选译本若尚未导入数据，自动回退到和合本，
+     阅读页不会空白。选择记在本地（churchBibleVer）。 */
+  var VER_NAMES = { CNV: "新译本", CUV: "和合本", JPN: "新改訳2017" };
+  var bibleVer = "CNV";
+  try { bibleVer = localStorage.getItem("churchBibleVer") || "CNV"; } catch (e) {}
+  if (!VER_NAMES[bibleVer]) bibleVer = "CNV";
   var scriptureCache = {};
   async function fetchChapter(book, ch) {
-    var key = book + "|" + ch;
+    var want = bibleVer;
+    var key = want + "|" + book + "|" + ch;
     if (scriptureCache[key]) return scriptureCache[key];
-    var res = await sb.from("bible_verses").select("verse, text")
-      .eq("version", "CUV").eq("book", book).eq("chapter", ch)
-      .order("verse", { ascending: true });
-    if (res.error) throw res.error;
-    scriptureCache[key] = res.data || [];
-    return scriptureCache[key];
+    async function load(ver) {
+      var res = await sb.from("bible_verses").select("verse, text")
+        .eq("version", ver).eq("book", book).eq("chapter", ch)
+        .order("verse", { ascending: true });
+      if (res.error) throw res.error;
+      return res.data || [];
+    }
+    var rows = await load(want);
+    var used = want;
+    if (!rows.length && want !== "CUV") { rows = await load("CUV"); used = "CUV"; }
+    var out = { rows: rows, used: used };
+    scriptureCache[key] = out;
+    return out;
+  }
+  function chapNote(used) {
+    var s;
+    if (used === "CNV") s = "站内经文：新译本（教会读经译本）";
+    else if (used === "JPN") s = "站内经文：新改訳2017";
+    else s = "站内经文：和合本（公有领域）";
+    if (used !== bibleVer) s += "（" + VER_NAMES[bibleVer] + "尚未导入，先显示和合本）";
+    return '<p class="chap-note">' + s + "</p>";
+  }
+  function syncVerSwitch() {
+    $$("#verSwitch button").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-ver") === bibleVer);
+    });
   }
   function chapterHtml(book, ch, verses) {
     var h = '<h3 class="chap-head">' + escapeHtml(book) + " 第" + ch + "章</h3>";
@@ -164,6 +191,7 @@
   }
   async function openReading(r) {
     if (FORMAL && r) {
+      S.lastReading = r;
       readerDate = r.read_date || null;
       clearVerseSel();
       var footEl = $("#readerFoot");
@@ -179,9 +207,9 @@
         $("#verses").innerHTML = '<p style="color:var(--rmut)">正在加载经文全文…</p>';
         try {
           var sv = await fetchChapter(r.single[0], r.single[1]);
-          if (sv.length) {
-            $("#verses").innerHTML = chapterHtml(r.single[0], r.single[1], sv) +
-              '<p class="chap-note">站内经文：和合本（公有领域）· 教会读经译本为新译本，请对照新译本阅读</p>';
+          if (sv.rows.length) {
+            S.readerVerUsed = sv.used;
+            $("#verses").innerHTML = chapterHtml(r.single[0], r.single[1], sv.rows) + chapNote(sv.used);
             return;
           }
         } catch (e) { /* 落到下面的提示 */ }
@@ -193,11 +221,12 @@
         try {
           var otv = await fetchChapter(r.ot[0], r.ot[1]);
           var ntv = await fetchChapter(r.nt[0], r.nt[1]);
-          if (otv.length && ntv.length) {
+          if (otv.rows.length && ntv.rows.length) {
+            S.readerVerUsed = otv.used;
             $("#verses").innerHTML =
-              chapterHtml(r.ot[0], r.ot[1], otv) +
-              chapterHtml(r.nt[0], r.nt[1], ntv) +
-              '<p class="chap-note">站内经文：和合本（公有领域）· 教会读经译本为新译本，请对照新译本阅读</p>';
+              chapterHtml(r.ot[0], r.ot[1], otv.rows) +
+              chapterHtml(r.nt[0], r.nt[1], ntv.rows) +
+              chapNote(otv.used);
             return;
           }
           if (r.content) $("#verses").innerHTML = formatContent(r.content);
@@ -665,9 +694,22 @@
   });
   $("#vbCopy").addEventListener("click", async function () {
     if (!selVerse) return;
-    var t = selVerse.text + "（" + selVerse.label + " · 和合本）";
+    var t = selVerse.text + "（" + selVerse.label + " · " + VER_NAMES[S.readerVerUsed || bibleVer] + "）";
     try { await navigator.clipboard.writeText(t); toast("经文已复制，可以粘贴分享了"); }
     catch (e) { toast("复制没有成功，可以长按经文手动复制"); }
+  });
+
+  /* ---- 译本切换（阅读页顶部） ---- */
+  $$("#verSwitch button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var v = b.getAttribute("data-ver");
+      if (!v || v === bibleVer) return;
+      bibleVer = v;
+      try { localStorage.setItem("churchBibleVer", v); } catch (e) {}
+      syncVerSwitch();
+      toast("已切换为" + VER_NAMES[v]);
+      if (S.lastReading) openReading(S.lastReading);
+    });
   });
 
   /* ---- 我的划线列表 ---- */
@@ -699,7 +741,7 @@
     for (var gi = 0; gi < groups.length; gi++) {
       var g2 = groups[gi];
       var verses = [];
-      try { verses = await fetchChapter(g2.book, g2.ch); } catch (e) {}
+      try { verses = (await fetchChapter(g2.book, g2.ch)).rows; } catch (e) {}
       var textByVerse = {};
       verses.forEach(function (vv) { textByVerse[vv.verse] = vv.text; });
       html += '<div class="field-label">' + escapeHtml(g2.book) + " 第" + g2.ch + "章</div>";
@@ -1477,7 +1519,7 @@
       id: null, plan_id: null, read_date: ds, reference: ref, key_verse: "",
       ot: ob, nt: nb,
       otPos: oi + 1, ntPos: ni + 1, diff: diff,
-      content: "今日经文：" + ob[0] + "第" + ob[1] + "章、" + nb[0] + "第" + nb[1] + "章（教会读经译本：新译本）。\n站内附和合本全文供阅读；如未能加载，请配合纸本圣经或圣经 App 阅读。"
+      content: "今日经文：" + ob[0] + "第" + ob[1] + "章、" + nb[0] + "第" + nb[1] + "章（教会读经译本：新译本）。\n站内附新译本全文供阅读（阅读页可切换和合本 / 新改訳2017）；如未能加载，请配合纸本圣经或圣经 App 阅读。"
     };
   }
 
@@ -1906,6 +1948,7 @@
   $$("[data-checkin]").forEach(function (b) { if (!b.getAttribute("data-orig")) b.setAttribute("data-orig", b.textContent); });
   if (FORMAL) {
     var so = $("#signOutBtn"); if (so) so.style.display = "";
+    var vs = $("#verSwitch"); if (vs) { vs.style.display = ""; syncVerSwitch(); }
     var nf = $("#noteForm"); if (nf) nf.style.display = "";
     var nse = $("#noteSearch"); if (nse) nse.style.display = "";
     var dc = $("#demoNoteCard"); if (dc) dc.style.display = "none";
