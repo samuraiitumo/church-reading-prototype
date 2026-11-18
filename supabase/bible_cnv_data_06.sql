@@ -1,7 +1,7 @@
 -- ============================================================
--- 圣经全文（新译本（主名作「主/主神」））· 数据文件 6/6
--- 先运行 bible_cuv_schema.sql 建表（已运行过可跳过），再按序号运行。
--- 可重复运行（冲突自动跳过）。本文件 5068 节。
+-- 圣经全文（新译本，神名已按公开发布本还原为「耶和华」）· 数据文件 6/6
+-- 第二版：可覆盖第一版（冲突时更新经文）。已运行过第一版的直接运行本版即可。
+-- 本文件 5068 节。
 -- ============================================================
 insert into public.bible_verses (version, book, book_index, chapter, verse, text) values
 ('CNV', '路加福音', 42, 24, 28, '他们走近要去的村子，他好像还要往前行，'),
@@ -804,7 +804,7 @@ insert into public.bible_verses (version, book, book_index, chapter, verse, text
 ('CNV', '约翰福音', 43, 18, 31, '彼拉多对他们说：“你们自己把他带去，按着你们的律法审问他吧。”犹太人说：“我们没有权去判人死罪。”'),
 ('CNV', '约翰福音', 43, 18, 32, '这就应验了耶稣预先说到自己将要怎样死的那句话。'),
 ('CNV', '约翰福音', 43, 18, 33, '彼拉多又进了官邸，把耶稣叫来，问他说：“你是犹太人的王吗？”')
-on conflict (version, book, chapter, verse) do nothing;
+on conflict (version, book, chapter, verse) do update set text = excluded.text;
 insert into public.bible_verses (version, book, book_index, chapter, verse, text) values
 ('CNV', '约翰福音', 43, 18, 34, '耶稣回答：“这话是你自己说的，还是别人对你说到我的呢？”'),
 ('CNV', '约翰福音', 43, 18, 35, '彼拉多说：“难道我是犹太人吗？你本国的人和祭司长把你交给我，你究竟作了什么事？”'),
@@ -1606,7 +1606,7 @@ insert into public.bible_verses (version, book, book_index, chapter, verse, text
 ('CNV', '使徒行传', 44, 19, 32, '那时大家叫这个喊那个，乱成一团，大多数的人都不知道聚集的原因。'),
 ('CNV', '使徒行传', 44, 19, 33, '犹太人把亚历山大推到前面，群众中有人把这事的因由告诉他。亚历山大作了一个手势，要向民众申辩。'),
 ('CNV', '使徒行传', 44, 19, 34, '大家一认出他是犹太人，就异口同声高呼：“以弗所人的女神，伟大的亚底米啊！”喊了约有两个钟头。')
-on conflict (version, book, chapter, verse) do nothing;
+on conflict (version, book, chapter, verse) do update set text = excluded.text;
 insert into public.bible_verses (version, book, book_index, chapter, verse, text) values
 ('CNV', '使徒行传', 44, 19, 35, '后来，书记官安抚群众说：“以弗所人哪！谁不知道你们的城，是看守大亚底米的庙，又是看守宙斯那里降下的神像的呢？'),
 ('CNV', '使徒行传', 44, 19, 36, '这些事既然是驳不倒的，你们就应当平心静气，不可轻举妄动。'),
@@ -2408,7 +2408,7 @@ insert into public.bible_verses (version, book, book_index, chapter, verse, text
 ('CNV', '哥林多前书', 46, 3, 11, '因为除了那已经立好的根基以外，没有人能立别的根基。那根基就是耶稣基督。'),
 ('CNV', '哥林多前书', 46, 3, 12, '如果有人用金、银、宝石、草、木、禾秸，在这根基上建造，'),
 ('CNV', '哥林多前书', 46, 3, 13, '各人的工程将来必要显露，因为那日子必把它显明出来。有火要把它显露出来，那火要考验各人的工程是怎样的。')
-on conflict (version, book, chapter, verse) do nothing;
+on conflict (version, book, chapter, verse) do update set text = excluded.text;
 insert into public.bible_verses (version, book, book_index, chapter, verse, text) values
 ('CNV', '哥林多前书', 46, 3, 14, '如果有人在这根基上建造的工程存得住，他就要得到赏赐；'),
 ('CNV', '哥林多前书', 46, 3, 15, '如果有人的工程被烧毁，他就要受亏损；自己却要得救，只是要像从火里经过一样。'),
@@ -3210,7 +3210,7 @@ insert into public.bible_verses (version, book, book_index, chapter, verse, text
 ('CNV', '以弗所书', 49, 1, 16, '就不住地为你们献上感谢。我祷告的时候，常常提到你们，'),
 ('CNV', '以弗所书', 49, 1, 17, '求我们主耶稣基督的神，荣耀的父，赐给你们智慧和启示的灵，使你们充分地认识他，'),
 ('CNV', '以弗所书', 49, 1, 18, '并且使你们心灵的眼睛明亮，可以知道他的呼召有怎样的盼望；他基业的荣耀，在圣徒中是多么的丰盛；')
-on conflict (version, book, chapter, verse) do nothing;
+on conflict (version, book, chapter, verse) do update set text = excluded.text;
 insert into public.bible_verses (version, book, book_index, chapter, verse, text) values
 ('CNV', '以弗所书', 49, 1, 19, '神照着他强大的力量，向我们信他的人显出的能力，是何等的浩大。'),
 ('CNV', '以弗所书', 49, 1, 20, '这力量运行在基督身上，使他从死人中复活，并且在天上坐在自己的右边，'),
@@ -4012,7 +4012,7 @@ insert into public.bible_verses (version, book, book_index, chapter, verse, text
 ('CNV', '希伯来书', 58, 4, 16, '所以，我们只管坦然无惧地来到施恩的宝座前，为的是要领受怜悯，得到恩惠，作为及时的帮助。'),
 ('CNV', '希伯来书', 58, 5, 1, '每一个大祭司都是从人间选出来，奉派替人办理与神有关的事，为的是要献上礼物和赎罪的祭物。'),
 ('CNV', '希伯来书', 58, 5, 2, '他能够温和地对待那些无知和迷误的人，因为他自己也被软弱所困。')
-on conflict (version, book, chapter, verse) do nothing;
+on conflict (version, book, chapter, verse) do update set text = excluded.text;
 insert into public.bible_verses (version, book, book_index, chapter, verse, text) values
 ('CNV', '希伯来书', 58, 5, 3, '因此，他怎样为人民的罪献祭，也应该怎样为自己的罪献祭。'),
 ('CNV', '希伯来书', 58, 5, 4, '没有人可以自己取得这大祭司的尊荣，只有像亚伦一样，蒙神选召的才可以。'),
@@ -4814,7 +4814,7 @@ insert into public.bible_verses (version, book, book_index, chapter, verse, text
 ('CNV', '启示录', 66, 8, 5, '天使拿着香炉，用坛上的火把它装满了，投在地上；于是就有雷轰、响声、闪电和地震。'),
 ('CNV', '启示录', 66, 8, 6, '拿着七枝号筒的七位天使，预备好了要吹号。'),
 ('CNV', '启示录', 66, 8, 7, '第一位天使吹号，就有冰雹和混杂着血的火，投在地上。地的三分之一烧掉了，树的三分之一烧掉了，所有的青草也烧掉了。')
-on conflict (version, book, chapter, verse) do nothing;
+on conflict (version, book, chapter, verse) do update set text = excluded.text;
 insert into public.bible_verses (version, book, book_index, chapter, verse, text) values
 ('CNV', '启示录', 66, 8, 8, '第二位天使吹号，就有一座好像燃烧着的大山，投在海里。海的三分之一变成了血，'),
 ('CNV', '启示录', 66, 8, 9, '海里受造的活物死了三分之一，船只也毁坏了三分之一。'),
@@ -5084,4 +5084,4 @@ insert into public.bible_verses (version, book, book_index, chapter, verse, text
 ('CNV', '启示录', 66, 22, 19, '如果有人从这书上的预言删减什么，神必从这书上所记的生命树和圣城删去他的分。'),
 ('CNV', '启示录', 66, 22, 20, '证明这些事的那一位说：“是的，我必快来！”阿们！主耶稣啊，请你来吧！'),
 ('CNV', '启示录', 66, 22, 21, '愿主耶稣的恩惠与所有的圣徒同在！阿们！')
-on conflict (version, book, chapter, verse) do nothing;
+on conflict (version, book, chapter, verse) do update set text = excluded.text;
