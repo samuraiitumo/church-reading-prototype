@@ -456,3 +456,8 @@ button, [role="button"], select, summary, input:not([type="checkbox"], [type="ra
       .adm-row .adm-meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
       .adm-sel { border: 1.5px solid var(--line); border-radius: 10px; padding: 7px 8px; font: inherit; font-size: 13.5px; background: var(--surface); color: var(--ink); max-width: 128px; }
       .adm-off { opacity: .55; }
+
+/* 译本切换（阅读页） */
+.ver-switch{display:flex;gap:8px;justify-content:center;margin:2px 0 14px}
+.ver-switch button{border:1.5px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:7px 16px;font-size:14px;min-height:38px;cursor:pointer}
+.ver-switch button.on{background:var(--olive);border-color:var(--olive);color:#fff;font-weight:600}
