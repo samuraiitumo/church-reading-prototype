@@ -344,8 +344,11 @@ button, [role="button"], select, summary, input:not([type="checkbox"], [type="ra
       .verses .chap-head { font-size: 20px; font-weight: 700; text-align: center; margin: 26px 0 8px; }
       .verses .chap-head:first-child { margin-top: 2px; }
       .verses .chap-note { text-align: center; color: var(--rmut); font-size: 13px; font-family: "Noto Sans SC", sans-serif; margin-top: 20px; }
-      .reader-foot { display: flex; gap: 10px; position: sticky; bottom: -30px; margin: 26px -20px -30px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: var(--rbg); box-shadow: 0 -10px 24px rgba(60, 50, 20, .12); z-index: 3; }
-      .reader-foot .btn { flex: 1; }
+      .reader-foot { display: flex; gap: 10px; align-items: center; justify-content: space-between; position: sticky; bottom: -30px; margin: 26px -20px -30px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); background: var(--rbg); box-shadow: 0 -10px 24px rgba(60, 50, 20, .12); z-index: 3; }
+      .reader-foot .btn { flex: none; }
+      .reader-foot .btn-icon { width: 52px; height: 52px; border-radius: 50%; padding: 0; font-size: 22px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+      .reader-foot #readerCheckinBtn { width: 60px; height: 60px; font-size: 27px; position: relative; }
+      .ck-badge { position: absolute; top: -4px; right: -7px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 999px; background: var(--gold); color: #fff; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(60, 50, 20, .35); }
 
       /* compose */
       .field-label { font-size: 14px; font-weight: 900; color: var(--ink-2); margin: 18px 0 9px; }
