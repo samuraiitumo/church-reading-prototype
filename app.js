@@ -1160,11 +1160,19 @@
 
   /* ---------------- check-in ---------------- */
   $$("[data-checkin]").forEach(function (b) { b.setAttribute("data-orig", b.textContent); });
+  function renderReaderCheckin(b, done, streak) {
+    b.innerHTML = "✓" + (done && streak >= 2 ? '<span class="ck-badge">' + streak + "</span>" : "");
+    b.classList.toggle("btn-done", done);
+    b.classList.toggle("btn-olive", !done);
+    b.title = done ? ("已打卡 · 连续 " + streak + " 天（点一下取消）") : "读完打卡";
+    b.setAttribute("aria-label", b.title);
+  }
   function demoCheckin() {
     if (demoChecked) { toast("今天已经打过卡啦"); return; }
     demoChecked = true;
     S.myCheckins[todayStr()] = true;
     $$("[data-checkin]").forEach(function (b) {
+      if (b.id === "readerCheckinBtn") { renderReaderCheckin(b, true, 24); return; }
       b.textContent = "✓ 已打卡 · 第 24 天";
       b.classList.add(b.classList.contains("btn-outline-light") ? "btn-checkin-done" : "btn-done");
       b.classList.remove("btn-outline-light");
@@ -1180,6 +1188,7 @@
     var done = !!S.myCheckins[todayStr()];
     var streak = computeStreak();
     $$("[data-checkin]").forEach(function (b) {
+      if (b.id === "readerCheckinBtn") { renderReaderCheckin(b, done, streak); return; }
       if (done) {
         b.textContent = "✓ 已打卡 · 连续 " + streak + " 天（点一下取消）";
         b.classList.add(b.classList.contains("btn-outline-light") || b.classList.contains("btn-light") ? "btn-checkin-done" : "btn-done");
