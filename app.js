@@ -827,12 +827,13 @@
     for (var gi = 0; gi < groups.length; gi++) {
       var g2 = groups[gi];
       var verses = [];
-      try { verses = (await fetchChapter(g2.book, g2.ch)).rows; } catch (e) {}
+      var usedVer = bibleVer;
+      try { var chap = await fetchChapter(g2.book, g2.ch); verses = chap.rows; usedVer = chap.used || bibleVer; } catch (e) {}
       var textByVerse = {};
       verses.forEach(function (vv) { textByVerse[vv.verse] = vv.text; });
-      html += '<div class="field-label">' + escapeHtml(g2.book) + " 第" + g2.ch + "章</div>";
+      html += '<div class="field-label">' + escapeHtml(dispRef(g2.book, g2.ch, usedVer)) + "</div>";
       html += g2.items.map(function (en) {
-        return '<div class="card note-card"><div class="n-date">' + escapeHtml(en.book + " " + en.ch + ":" + en.v) +
+        return '<div class="card note-card"><div class="n-date">' + escapeHtml(dispBook(en.book, usedVer) + " " + en.ch + ":" + en.v) +
           '<button class="note-del" data-hl-del="' + escapeHtml(en.key) + '">删除</button>' +
           '<button class="note-goto" data-hl-goto="' + escapeHtml(en.book + "|" + en.ch) + '">看这一章</button></div>' +
           '<p class="n-text">' + escapeHtml(textByVerse[en.v] || "（经文加载失败，点「看这一章」查看）") + "</p></div>";
@@ -852,7 +853,7 @@
     if (gt) {
       var p2 = gt.getAttribute("data-hl-goto").split("|");
       closeSheets();
-      openReading({ single: [p2[0], +p2[1]], reference: p2[0] + " 第" + p2[1] + "章", read_date: null, content: "" });
+      openReading({ single: [p2[0], +p2[1]], reference: dispRef(p2[0], +p2[1], bibleVer), read_date: null, content: "" });
     }
   });
 
@@ -1432,8 +1433,11 @@
   function parseRefTitle(title) {
     var m = /^(.+?)\s*(\d+)\s*[:：]\s*(\d+)(?:\s*[-–]\s*\d+)?$/.exec((title || "").trim());
     if (!m) return null;
-    if (bookOrder()[m[1]] === undefined) return null;
-    return { book: m[1], ch: +m[2] };
+    if (bookOrder()[m[1]] !== undefined) return { book: m[1], ch: +m[2] };
+    /* 日文版下写笔记时，标题是日文书名（如「創世記 1:1」），按 JP_BOOKS 同序换回中文键，「看经文」按钮才出现。 */
+    var jpIdx = JP_BOOKS.indexOf(m[1]);
+    if (jpIdx < 0) return null;
+    return { book: OT_BOOKS.concat(NT_BOOKS)[jpIdx][0], ch: +m[2] };
   }
   function updateNoteBadge() {
     var n = (S.notesCache || []).length;
@@ -1505,7 +1509,7 @@
     var ng = e.target.closest("[data-note-goto]");
     if (ng && FORMAL) {
       var gp = ng.getAttribute("data-note-goto").split("|");
-      openReading({ single: [gp[0], +gp[1]], reference: gp[0] + " 第" + gp[1] + "章", read_date: null, content: "" });
+      openReading({ single: [gp[0], +gp[1]], reference: dispRef(gp[0], +gp[1], bibleVer), read_date: null, content: "" });
       return;
     }
     var save = e.target.closest("[data-note-save]");
