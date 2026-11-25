@@ -144,6 +144,17 @@
   var bibleVer = "CNV";
   try { bibleVer = localStorage.getItem("churchBibleVer") || "CNV"; } catch (e) {}
   if (!VER_NAMES[bibleVer]) bibleVer = "CNV";
+  /* 新改訳2017 的日文书名（与 OT_BOOKS+NT_BOOKS 同序，源自教会提供的圣经数据文件）。
+     显示日文经文时，书名用日文；数据库与划线仍以中文书名作键，不受影响。 */
+  var JP_BOOKS = ["創世記","出エジプト記","レビ記","民数記","申命記","ヨシュア記","士師記","ルツ記","サムエル記 第一","サムエル記 第二","列王記 第一","列王記 第二","歴代誌 第一","歴代誌 第二","エズラ記","ネヘミヤ記","エステル記","ヨブ記","詩篇","箴言","伝道者の書","雅歌","イザヤ書","エレミヤ書","哀歌","エゼキエル書","ダニエル書","ホセア書","ヨエル書","アモス書","オバデヤ書","ヨナ書","ミカ書","ナホム書","ハバクク書","ゼパニヤ書","ハガイ書","ゼカリヤ書","マラキ書","マタイの福音書","マルコの福音書","ルカの福音書","ヨハネの福音書","使徒の働き","ローマ人への手紙","コリント人への手紙 第一","コリント人への手紙 第二","ガラテヤ人への手紙","エペソ人への手紙","ピリピ人への手紙","コロサイ人への手紙","テサロニケ人への手紙 第一","テサロニケ人への手紙 第二","テモテへの手紙 第一","テモテへの手紙 第二","テトスへの手紙","ピレモン人への手紙","ヘブル人への手紙","ヤコブの手紙","ペテロの手紙 第一","ペテロの手紙 第二","ヨハネの手紙 第一","ヨハネの手紙 第二","ヨハネの手紙 第三","ユダの手紙","ヨハネの黙示録"];
+  function dispBook(book, ver) {
+    if (ver !== "JPN") return book;
+    var idx = bookOrder()[book];
+    return (idx != null && JP_BOOKS[idx]) ? JP_BOOKS[idx] : book;
+  }
+  function dispRef(book, ch, ver) {
+    return ver === "JPN" ? dispBook(book, ver) + " " + ch + "章" : book + " 第" + ch + "章";
+  }
   var scriptureCache = {};
   async function fetchChapter(book, ch) {
     var want = bibleVer;
@@ -172,12 +183,13 @@
     return '<p class="chap-note">' + s + "</p>";
   }
   function syncVerSwitch() {
-    $$("#verSwitch button").forEach(function (b) {
+    $$(".ver-seg button").forEach(function (b) {
       b.classList.toggle("on", b.getAttribute("data-ver") === bibleVer);
     });
   }
-  function chapterHtml(book, ch, verses) {
-    var h = '<h3 class="chap-head">' + escapeHtml(book) + " 第" + ch + "章</h3>";
+  function chapterHtml(book, ch, verses, usedVer) {
+    var uv = usedVer || bibleVer;
+    var h = '<h3 class="chap-head">' + escapeHtml(dispRef(book, ch, uv)) + "</h3>";
     h += verses.map(function (v, i) {
       /* 合节：和合本有若干节与上一节合并排印（如创24:29-30），库中无独立行；
          节号缺口处按新标点和合本的标法显示为节段（如 29-30）。 */
@@ -185,7 +197,7 @@
       var next = verses[i + 1];
       if (next && next.verse > v.verse + 1) label = v.verse + "-" + (next.verse - 1);
       var key = book + "|" + ch + "|" + v.verse;
-      return '<p data-vref="' + escapeHtml(book + " " + ch + ":" + label) + '" data-hlkey="' + escapeHtml(key) + '"' + (HL.map[key] ? ' class="hl-on"' : "") + '><span class="vn">' + label + "</span>" + escapeHtml(v.text) + "</p>";
+      return '<p data-vref="' + escapeHtml(dispBook(book, uv) + " " + ch + ":" + label) + '" data-hlkey="' + escapeHtml(key) + '"' + (HL.map[key] ? ' class="hl-on"' : "") + '><span class="vn">' + label + "</span>" + escapeHtml(v.text) + "</p>";
     }).join("");
     return h;
   }
@@ -195,12 +207,15 @@
       readerDate = r.read_date || null;
       clearVerseSel();
       var footEl = $("#readerFoot");
-      if (footEl) footEl.style.display = r.single ? "none" : "";
+      if (footEl) footEl.style.display = "";
       var rcb = $("#readerCheckinBtn");
       if (rcb) rcb.style.display = (!r.single && readerDate === todayStr()) ? "" : "none";
+      var pv = $("#readerPrev"), nx = $("#readerNext");
+      if (pv) { pv.title = r.single ? "上一章" : "前一天"; pv.setAttribute("aria-label", pv.title); }
+      if (nx) { nx.title = r.single ? "下一章" : "后一天"; nx.setAttribute("aria-label", nx.title); }
       $("#readerRef").textContent = r.reference || "今日经文";
       $("#readerTitle").textContent = r.reference || "今日经文";
-      $("#readerSub").textContent = r.single ? "从我的划线 / 笔记打开" : (r.read_date ? (r.read_date + " · 读完后在页尾打卡") : "读完后在页尾打卡");
+      $("#readerSub").textContent = r.single ? (r.fromPicker ? "圣经阅读 · 页尾按钮可前后翻章" : "从我的划线 / 笔记打开") : (r.read_date ? (r.read_date + " · 读完后在页尾打卡") : "读完后在页尾打卡");
       if (r.content) $("#verses").innerHTML = formatContent(r.content);
       openSheet("reader");
       if (r.single) {
@@ -209,7 +224,7 @@
           var sv = await fetchChapter(r.single[0], r.single[1]);
           if (sv.rows.length) {
             S.readerVerUsed = sv.used;
-            $("#verses").innerHTML = chapterHtml(r.single[0], r.single[1], sv.rows) + chapNote(sv.used);
+            $("#verses").innerHTML = chapterHtml(r.single[0], r.single[1], sv.rows, sv.used) + chapNote(sv.used);
             return;
           }
         } catch (e) { /* 落到下面的提示 */ }
@@ -224,8 +239,8 @@
           if (otv.rows.length && ntv.rows.length) {
             S.readerVerUsed = otv.used;
             $("#verses").innerHTML =
-              chapterHtml(r.ot[0], r.ot[1], otv.rows) +
-              chapterHtml(r.nt[0], r.nt[1], ntv.rows) +
+              chapterHtml(r.ot[0], r.ot[1], otv.rows, otv.used) +
+              chapterHtml(r.nt[0], r.nt[1], ntv.rows, ntv.used) +
               chapNote(otv.used);
             return;
           }
@@ -563,8 +578,25 @@
 
   /* ---- 阅读页：前一天 / 后一天 + 点经文写笔记 ---- */
   var readerDate = null;
+  function openSingleChapter(book, ch) {
+    openReading({ single: [book, ch], reference: dispRef(book, ch, bibleVer), fromPicker: true });
+  }
+  function shiftChapter(n) {
+    var cur = S.lastReading.single;
+    if (!shiftChapter.flat) {
+      var flat = [];
+      OT_BOOKS.concat(NT_BOOKS).forEach(function (b) { for (var c = 1; c <= b[1]; c++) flat.push([b[0], c]); });
+      shiftChapter.flat = flat;
+    }
+    var flat = shiftChapter.flat, idx = -1;
+    for (var i = 0; i < flat.length; i++) if (flat[i][0] === cur[0] && flat[i][1] === cur[1]) { idx = i; break; }
+    var t = flat[idx + n];
+    if (!t) { toast(n > 0 ? "已是最后一章" : "已是第一章"); return; }
+    openSingleChapter(t[0], t[1]);
+  }
   function shiftReader(n) {
     if (!FORMAL) { toast("演示模式只提供今日经文"); return; }
+    if (S.lastReading && S.lastReading.single) { shiftChapter(n); return; }
     var base = readerDate || todayStr();
     var p = base.split("-");
     var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]) + n * 86400000);
@@ -700,16 +732,70 @@
   });
 
   /* ---- 译本切换（阅读页顶部） ---- */
-  $$("#verSwitch button").forEach(function (b) {
+  $$(".ver-seg button").forEach(function (b) {
     b.addEventListener("click", function () {
       var v = b.getAttribute("data-ver");
       if (!v || v === bibleVer) return;
       bibleVer = v;
       try { localStorage.setItem("churchBibleVer", v); } catch (e) {}
       syncVerSwitch();
+      renderBiblePicker();
       toast("已切换为" + VER_NAMES[v]);
       if (S.lastReading) openReading(S.lastReading);
     });
+  });
+
+  /* ================================================================
+     圣经阅读（独立阅读器）：与每日读经计划分开，自由选书卷/章节查考。
+     选章后复用阅读页的单章模式打开，页尾 ←/→ 按章翻页（可跨书卷）。
+  ================================================================ */
+  var bibleTestament = "OT", bibleBook = null;
+  function renderBiblePicker() {
+    var grid = $("#bookGrid");
+    if (!grid) return;
+    var books = bibleTestament === "OT" ? OT_BOOKS : NT_BOOKS;
+    grid.innerHTML = books.map(function (b) {
+      return '<button class="book-btn" data-book="' + escapeHtml(b[0]) + '">' + escapeHtml(dispBook(b[0], bibleVer)) + "</button>";
+    }).join("");
+    var tO = $("#bibleTabOT"), tN = $("#bibleTabNT");
+    if (tO) tO.classList.toggle("on", bibleTestament === "OT");
+    if (tN) tN.classList.toggle("on", bibleTestament === "NT");
+    if (bibleBook) renderChapGrid();
+    else { var cp = $("#chapPane"); if (cp) cp.hidden = true; grid.hidden = false; }
+  }
+  function renderChapGrid() {
+    var all = OT_BOOKS.concat(NT_BOOKS), rec = null;
+    for (var i = 0; i < all.length; i++) if (all[i][0] === bibleBook) rec = all[i];
+    if (!rec) return;
+    $("#chapBookName").textContent = dispBook(bibleBook, bibleVer) + "（共 " + rec[1] + " 章）";
+    var h = "";
+    for (var c = 1; c <= rec[1]; c++) h += '<button data-ch="' + c + '">' + c + "</button>";
+    $("#chapGrid").innerHTML = h;
+    $("#bookGrid").hidden = true;
+    $("#chapPane").hidden = false;
+  }
+  var obb = $("#openBibleBtn");
+  if (obb) obb.addEventListener("click", function () { renderBiblePicker(); openSheet("bibleSheet"); });
+  var btO = $("#bibleTabOT"), btN = $("#bibleTabNT");
+  if (btO) btO.addEventListener("click", function () { bibleTestament = "OT"; bibleBook = null; renderBiblePicker(); });
+  if (btN) btN.addEventListener("click", function () { bibleTestament = "NT"; bibleBook = null; renderBiblePicker(); });
+  var bgEl = $("#bookGrid");
+  if (bgEl) bgEl.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-book]");
+    if (!b) return;
+    bibleBook = b.getAttribute("data-book");
+    renderChapGrid();
+  });
+  var cbEl = $("#chapBack");
+  if (cbEl) cbEl.addEventListener("click", function () { bibleBook = null; renderBiblePicker(); });
+  var cgEl = $("#chapGrid");
+  if (cgEl) cgEl.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-ch]");
+    if (!b || !bibleBook) return;
+    if (!FORMAL) { toast("演示模式只提供今日经文"); return; }
+    var book = bibleBook, ch = +b.getAttribute("data-ch");
+    closeSheets();
+    openSingleChapter(book, ch);
   });
 
   /* ---- 我的划线列表 ---- */

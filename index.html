@@ -121,6 +121,9 @@
             <p id="planBarDesc" style="font-size:13.5px;color:var(--muted);margin-top:10px">旧约读至耶利米书，新约读至约翰福音，进度正常。</p>
           </div>
 
+          <button class="btn btn-olive" id="openBibleBtn" style="width:100%;margin-top:14px">圣经阅读 · 自由查考 66 卷</button>
+          <p style="font-size:12.5px;color:var(--muted);margin-top:8px">不在读经计划里，想查哪一卷、哪一章，点这里打开全文阅读。</p>
+
           <div class="sec-head"><h2 id="calMonthTitle">2026年11月</h2><span class="cal-nav"><button id="calPrev" aria-label="上个月">‹</button><button id="calNext" aria-label="下个月">›</button></span></div>
           <div class="card cal">
             <div class="cal-week"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
@@ -307,7 +310,7 @@
             <h2 class="serif" id="readerTitle">约翰福音 第十五章</h2>
             <p id="readerSub">今日经文 · 读完后在页尾打卡</p>
           </div>
-          <div class="ver-switch" id="verSwitch" style="display:none">
+          <div class="ver-switch ver-seg" id="verSwitch" style="display:none">
             <button data-ver="CNV">新译本</button>
             <button data-ver="CUV">和合本</button>
             <button data-ver="JPN">新改訳2017</button>
@@ -344,6 +347,35 @@
           <button class="btn btn-ghost" id="vbNote">写笔记</button>
           <button class="btn btn-olive" id="vbHl">划线</button>
           <button class="x" id="vbClose" aria-label="取消选择">×</button>
+        </div>
+      </div>
+
+      <!-- ============ 圣经阅读（独立阅读器） ============ -->
+      <div class="sheet" id="bibleSheet" role="dialog" aria-label="圣经阅读">
+        <div class="sheet-bar">
+          <button class="back" data-close-sheet aria-label="返回">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <h3>圣经阅读</h3>
+          <span class="spacer"></span>
+        </div>
+        <div class="sheet-body">
+          <div class="ver-switch ver-seg" id="verSwitch2">
+            <button data-ver="CNV">新译本</button>
+            <button data-ver="CUV">和合本</button>
+            <button data-ver="JPN">新改訳2017</button>
+          </div>
+          <div class="bible-tabs">
+            <button id="bibleTabOT" class="on">旧约</button>
+            <button id="bibleTabNT">新约</button>
+          </div>
+          <div class="book-grid" id="bookGrid"></div>
+          <div id="chapPane" hidden>
+            <button class="btn btn-ghost" id="chapBack">← 返回书卷</button>
+            <h3 class="chap-pick-title" id="chapBookName"></h3>
+            <div class="chap-grid" id="chapGrid"></div>
+          </div>
+          <p class="set-note" style="margin-top:16px">自由查考阅读，不计入读经计划，也不打卡。阅读时点任意一节经文，同样可以划线、写笔记或复制。</p>
         </div>
       </div>
 
